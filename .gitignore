@@ -1,0 +1,10 @@
+whiteboard
+whiteboard-*
+internal/server/static/.assets-stamp
+.assets-stamp
+internal/server/static/css/
+internal/server/static/fonts/
+internal/server/static/js/
+internal/server/static/fontawesome/
+.DS_Store
+Thumbs.db
