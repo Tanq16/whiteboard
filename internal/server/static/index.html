@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Whiteboard</title>
+
+    <link rel="icon" type="image/x-icon" href="/static/icons/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/icons/favicon.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/static/icons/apple-touch-icon.png">
+
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#11111b">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Whiteboard">
+
+    <link rel="stylesheet" href="/static/css/inter.css">
+    <link rel="stylesheet" href="/static/css/google-sans.css">
+    <link rel="stylesheet" href="/static/css/jetbrains-mono.css">
+    <link rel="stylesheet" href="/static/css/virgil.css">
+
+    <script src="/static/js/lucide.min.js"></script>
+    <script src="/static/js/tailwind.js"></script>
+    <style>
+      :root {
+        --ctp-rosewater: #f5e0dc; --ctp-flamingo: #f2cdcd; --ctp-pink: #f5c2e7;
+        --ctp-mauve: #cba6f7;     --ctp-red: #f38ba8;      --ctp-maroon: #eba0ac;
+        --ctp-peach: #fab387;     --ctp-yellow: #f9e2af;   --ctp-green: #a6e3a1;
+        --ctp-teal: #94e2d5;      --ctp-sky: #89dceb;      --ctp-sapphire: #74c7ec;
+        --ctp-blue: #89b4fa;      --ctp-lavender: #b4befe; --ctp-text: #cdd6f4;
+        --ctp-subtext1: #bac2de;  --ctp-subtext0: #a6adc8; --ctp-overlay2: #9399b2;
+        --ctp-overlay1: #7f849c;  --ctp-overlay0: #6c7086; --ctp-surface2: #585b70;
+        --ctp-surface1: #45475a;  --ctp-surface0: #313244; --ctp-base: #1e1e2e;
+        --ctp-mantle: #181825;    --ctp-crust: #11111b;
+      }
+    </style>
+    <style type="text/tailwindcss">
+      @theme {
+        --color-rosewater: var(--ctp-rosewater); --color-flamingo: var(--ctp-flamingo);
+        --color-pink: var(--ctp-pink);           --color-mauve: var(--ctp-mauve);
+        --color-red: var(--ctp-red);             --color-maroon: var(--ctp-maroon);
+        --color-peach: var(--ctp-peach);         --color-yellow: var(--ctp-yellow);
+        --color-green: var(--ctp-green);         --color-teal: var(--ctp-teal);
+        --color-sky: var(--ctp-sky);             --color-sapphire: var(--ctp-sapphire);
+        --color-blue: var(--ctp-blue);           --color-lavender: var(--ctp-lavender);
+        --color-text: var(--ctp-text);           --color-subtext1: var(--ctp-subtext1);
+        --color-subtext0: var(--ctp-subtext0);   --color-overlay2: var(--ctp-overlay2);
+        --color-overlay1: var(--ctp-overlay1);   --color-overlay0: var(--ctp-overlay0);
+        --color-surface2: var(--ctp-surface2);   --color-surface1: var(--ctp-surface1);
+        --color-surface0: var(--ctp-surface0);   --color-base: var(--ctp-base);
+        --color-mantle: var(--ctp-mantle);       --color-crust: var(--ctp-crust);
+
+        --font-sans: 'Inter', sans-serif;
+        --font-display: 'Google Sans', sans-serif;
+        --font-mono: 'JetBrains Mono', monospace;
+      }
+    </style>
+</head>
+<body class="bg-crust text-subtext0 w-screen h-screen overflow-hidden select-none font-sans">
+    <div class="fixed top-2.5 left-0 right-0 z-50 flex justify-center pointer-events-none px-2">
+        <div id="toolbar" class="pointer-events-auto bg-mantle/95 backdrop-blur border border-surface0 rounded-2xl shadow-xl px-2.5 py-1.5 flex items-center gap-1.5 max-w-full overflow-x-auto select-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+            <div class="flex items-center gap-1 shrink-0">
+                <button data-tool="select" class="tool-btn p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition" title="Select (V)">
+                    <i data-lucide="mouse-pointer" class="w-4 h-4"></i>
+                </button>
+                <button data-tool="hand" class="tool-btn p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition" title="Hand / Pan (H)">
+                    <i data-lucide="hand" class="w-4 h-4"></i>
+                </button>
+                <button data-tool="pen" class="tool-btn p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition" title="Pen (P)">
+                    <i data-lucide="pen" class="w-4 h-4"></i>
+                </button>
+                <button data-tool="laser" class="tool-btn p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition" title="Laser Pointer (K)">
+                    <i data-lucide="sparkles" class="w-4 h-4"></i>
+                </button>
+                <button id="btn-add-shapes" class="tool-btn p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition flex items-center gap-0.5" title="Add Shape or Text (+)">
+                    <i data-lucide="plus" class="w-4 h-4"></i>
+                    <i data-lucide="chevron-down" class="w-2.5 h-2.5 opacity-60"></i>
+                </button>
+            </div>
+
+            <div class="h-4 w-px bg-surface0 shrink-0"></div>
+
+            <button id="btn-pen-mode" class="p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition flex items-center gap-1.5 shrink-0" title="Stylus Mode">
+                <i data-lucide="pen-tool" class="w-4 h-4"></i>
+                <span id="pen-mode-dot" class="w-2 h-2 rounded-full bg-surface2"></span>
+            </button>
+
+            <div class="h-4 w-px bg-surface0 shrink-0"></div>
+
+            <button id="btn-color-picker" class="p-1 rounded-lg text-subtext0 hover:bg-surface0 transition flex items-center gap-1 shrink-0" title="Color">
+                <span id="active-color-swatch" class="w-5 h-5 rounded-full border-2 border-surface1 inline-block transition" style="background-color: #cdd6f4;"></span>
+                <i data-lucide="chevron-down" class="w-2.5 h-2.5 opacity-60"></i>
+            </button>
+
+            <button id="btn-width-picker" class="px-2 py-1 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition flex items-center gap-1 text-xs font-mono shrink-0" title="Stroke Width">
+                <span id="active-width-label">4px</span>
+                <i data-lucide="chevron-down" class="w-2.5 h-2.5 opacity-60"></i>
+            </button>
+
+            <div class="h-4 w-px bg-surface0 shrink-0"></div>
+
+            <div class="flex items-center gap-0.5 shrink-0">
+                <button id="btn-undo" class="p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition" title="Undo (Ctrl+Z)">
+                    <i data-lucide="undo-2" class="w-4 h-4"></i>
+                </button>
+                <button id="btn-redo" class="p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition" title="Redo (Ctrl+Y)">
+                    <i data-lucide="redo-2" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <div class="h-4 w-px bg-surface0 shrink-0"></div>
+
+            <div class="flex items-center gap-0.5 shrink-0">
+                <button id="btn-zoom-out" class="p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition" title="Zoom Out (-)">
+                    <i data-lucide="zoom-out" class="w-4 h-4"></i>
+                </button>
+                <button id="btn-zoom-reset" class="px-1 py-1 rounded text-xs font-mono w-11 text-center text-subtext0 hover:text-text hover:bg-surface0 transition" title="Reset Zoom (0)">
+                    <span id="zoom-indicator">100%</span>
+                </button>
+                <button id="btn-zoom-in" class="p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition" title="Zoom In (+)">
+                    <i data-lucide="zoom-in" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <div class="h-4 w-px bg-surface0 shrink-0"></div>
+
+            <div class="flex items-center gap-0.5 shrink-0">
+                <button id="btn-clear" class="p-1.5 rounded-lg text-subtext0 hover:text-red hover:bg-surface0 transition" title="Clear Canvas">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                </button>
+                <button id="btn-export-menu" class="p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition flex items-center gap-0.5" title="Export">
+                    <i data-lucide="download" class="w-4 h-4"></i>
+                    <i data-lucide="chevron-down" class="w-2.5 h-2.5 opacity-60"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="shapes-dropdown" class="hidden fixed bg-mantle border border-surface0 rounded-xl shadow-2xl p-1.5 flex flex-col gap-1 min-w-36 z-50 select-none">
+        <button data-tool="rect" class="tool-btn flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs text-subtext0 hover:text-text hover:bg-surface0 transition text-left" title="Rectangle (R)">
+            <i data-lucide="square" class="w-4 h-4"></i>
+            <span>Rectangle (R)</span>
+        </button>
+        <button data-tool="circle" class="tool-btn flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs text-subtext0 hover:text-text hover:bg-surface0 transition text-left" title="Circle (C)">
+            <i data-lucide="circle" class="w-4 h-4"></i>
+            <span>Circle (C)</span>
+        </button>
+        <button data-tool="line" class="tool-btn flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs text-subtext0 hover:text-text hover:bg-surface0 transition text-left" title="Line (L)">
+            <i data-lucide="minus" class="w-4 h-4"></i>
+            <span>Line (L)</span>
+        </button>
+        <button data-tool="arrow" class="tool-btn flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs text-subtext0 hover:text-text hover:bg-surface0 transition text-left" title="Arrow (A)">
+            <i data-lucide="arrow-up-right" class="w-4 h-4"></i>
+            <span>Arrow (A)</span>
+        </button>
+        <button data-tool="text" class="tool-btn flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs text-subtext0 hover:text-text hover:bg-surface0 transition text-left" title="Text (T)">
+            <i data-lucide="type" class="w-4 h-4"></i>
+            <span>Text (T)</span>
+        </button>
+    </div>
+
+    <div id="color-modal" class="hidden fixed bg-mantle border border-surface0 rounded-xl shadow-2xl p-2.5 z-50 select-none">
+        <div class="grid grid-cols-5 gap-2 w-36">
+            <button data-color="#cdd6f4" class="color-btn w-6 h-6 rounded-full border-2 border-transparent hover:scale-110 transition" style="background-color: #cdd6f4;" title="Text"></button>
+            <button data-color="#f38ba8" class="color-btn w-6 h-6 rounded-full border-2 border-transparent hover:scale-110 transition" style="background-color: #f38ba8;" title="Red"></button>
+            <button data-color="#a6e3a1" class="color-btn w-6 h-6 rounded-full border-2 border-transparent hover:scale-110 transition" style="background-color: #a6e3a1;" title="Green"></button>
+            <button data-color="#89b4fa" class="color-btn w-6 h-6 rounded-full border-2 border-transparent hover:scale-110 transition" style="background-color: #89b4fa;" title="Blue"></button>
+            <button data-color="#f9e2af" class="color-btn w-6 h-6 rounded-full border-2 border-transparent hover:scale-110 transition" style="background-color: #f9e2af;" title="Yellow"></button>
+            <button data-color="#cba6f7" class="color-btn w-6 h-6 rounded-full border-2 border-transparent hover:scale-110 transition" style="background-color: #cba6f7;" title="Mauve"></button>
+            <button data-color="#fab387" class="color-btn w-6 h-6 rounded-full border-2 border-transparent hover:scale-110 transition" style="background-color: #fab387;" title="Peach"></button>
+            <button data-color="#94e2d5" class="color-btn w-6 h-6 rounded-full border-2 border-transparent hover:scale-110 transition" style="background-color: #94e2d5;" title="Teal"></button>
+            <button data-color="#f5c2e7" class="color-btn w-6 h-6 rounded-full border-2 border-transparent hover:scale-110 transition" style="background-color: #f5c2e7;" title="Pink"></button>
+            <button data-color="#6c7086" class="color-btn w-6 h-6 rounded-full border-2 border-transparent hover:scale-110 transition" style="background-color: #6c7086;" title="Gray"></button>
+        </div>
+    </div>
+
+    <div id="width-menu" class="hidden fixed bg-mantle border border-surface0 rounded-xl shadow-2xl p-1.5 flex flex-col gap-1 min-w-32 z-50 select-none">
+        <button data-width="1" class="width-btn flex items-center justify-between px-2.5 py-1 rounded-lg text-xs font-mono text-subtext0 hover:text-text hover:bg-surface0 transition">
+            <span>1px</span>
+            <span class="w-10 h-[1px] rounded bg-subtext0"></span>
+        </button>
+        <button data-width="2" class="width-btn flex items-center justify-between px-2.5 py-1 rounded-lg text-xs font-mono text-subtext0 hover:text-text hover:bg-surface0 transition">
+            <span>2px</span>
+            <span class="w-10 h-0.5 rounded bg-subtext0"></span>
+        </button>
+        <button data-width="4" class="width-btn flex items-center justify-between px-2.5 py-1 rounded-lg text-xs font-mono text-subtext0 hover:text-text hover:bg-surface0 transition">
+            <span>4px</span>
+            <span class="w-10 h-1 rounded bg-subtext0"></span>
+        </button>
+        <button data-width="6" class="width-btn flex items-center justify-between px-2.5 py-1 rounded-lg text-xs font-mono text-subtext0 hover:text-text hover:bg-surface0 transition">
+            <span>6px</span>
+            <span class="w-10 h-1.5 rounded bg-subtext0"></span>
+        </button>
+        <button data-width="8" class="width-btn flex items-center justify-between px-2.5 py-1 rounded-lg text-xs font-mono text-subtext0 hover:text-text hover:bg-surface0 transition">
+            <span>8px</span>
+            <span class="w-10 h-2 rounded bg-subtext0"></span>
+        </button>
+        <button data-width="12" class="width-btn flex items-center justify-between px-2.5 py-1 rounded-lg text-xs font-mono text-subtext0 hover:text-text hover:bg-surface0 transition">
+            <span>12px</span>
+            <span class="w-10 h-2.5 rounded bg-subtext0"></span>
+        </button>
+        <button data-width="16" class="width-btn flex items-center justify-between px-2.5 py-1 rounded-lg text-xs font-mono text-subtext0 hover:text-text hover:bg-surface0 transition">
+            <span>16px</span>
+            <span class="w-10 h-3 rounded bg-subtext0"></span>
+        </button>
+        <button data-width="24" class="width-btn flex items-center justify-between px-2.5 py-1 rounded-lg text-xs font-mono text-subtext0 hover:text-text hover:bg-surface0 transition">
+            <span>24px</span>
+            <span class="w-10 h-4 rounded bg-subtext0"></span>
+        </button>
+    </div>
+
+    <div id="export-menu" class="hidden fixed bg-mantle border border-surface0 rounded-xl shadow-2xl p-1.5 flex flex-col gap-1 min-w-40 z-50 select-none">
+        <button id="btn-export-png" class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs text-subtext0 hover:text-text hover:bg-surface0 transition text-left">
+            <i data-lucide="image" class="w-4 h-4"></i>
+            <span>Export as PNG</span>
+        </button>
+        <button id="btn-export-svg" class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs text-subtext0 hover:text-text hover:bg-surface0 transition text-left">
+            <i data-lucide="file-code" class="w-4 h-4"></i>
+            <span>Export as SVG</span>
+        </button>
+    </div>
+
+    <canvas id="whiteboard-canvas" class="absolute inset-0 w-full h-full touch-none block"></canvas>
+
+    <div id="text-input-container" class="absolute hidden z-40 pointer-events-auto">
+        <textarea id="canvas-text-input" rows="1" class="bg-mantle/90 border border-mauve text-text outline-none rounded p-1 leading-tight text-xl shadow-lg" style="font-family: 'Virgil', cursive;"></textarea>
+    </div>
+
+    <script type="module" src="/static/app.js"></script>
+    <script>lucide.createIcons();</script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js');
+        }
+    </script>
+</body>
+</html>
