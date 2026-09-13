@@ -8,6 +8,17 @@ const zoomIndicator = document.getElementById('zoom-indicator');
 const penModeBtn = document.getElementById('btn-pen-mode');
 const penModeDot = document.getElementById('pen-mode-dot');
 
+const shapesBtn = document.getElementById('btn-add-shapes');
+const shapesDropdown = document.getElementById('shapes-dropdown');
+const colorPickerBtn = document.getElementById('btn-color-picker');
+const activeColorSwatch = document.getElementById('active-color-swatch');
+const colorModal = document.getElementById('color-modal');
+const widthPickerBtn = document.getElementById('btn-width-picker');
+const activeWidthLabel = document.getElementById('active-width-label');
+const widthMenu = document.getElementById('width-menu');
+const exportMenuBtn = document.getElementById('btn-export-menu');
+const exportMenu = document.getElementById('export-menu');
+
 let pan = { x: 0, y: 0 };
 let zoom = 1.0;
 let dpr = window.devicePixelRatio || 1;
@@ -20,6 +31,11 @@ let activeWidth = 4;
 let elements = [];
 let undoStack = [];
 let redoStack = [];
+
+let selectedElement = null;
+let isDraggingSelection = false;
+let selectionStartWorld = { x: 0, y: 0 };
+let selectionSnapshot = null;
 
 let currentElement = null;
 let isPanning = false;
@@ -63,6 +79,55 @@ function resizeCanvas() {
 
 window.addEventListener('resize', resizeCanvas);
 
+function closeAllDropdowns() {
+    shapesDropdown.classList.add('hidden');
+    colorModal.classList.add('hidden');
+    widthMenu.classList.add('hidden');
+    exportMenu.classList.add('hidden');
+}
+
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('.relative')) {
+        closeAllDropdowns();
+    }
+});
+
+shapesBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const isHidden = shapesDropdown.classList.contains('hidden');
+    closeAllDropdowns();
+    if (isHidden) {
+        shapesDropdown.classList.remove('hidden');
+    }
+});
+
+colorPickerBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const isHidden = colorModal.classList.contains('hidden');
+    closeAllDropdowns();
+    if (isHidden) {
+        colorModal.classList.remove('hidden');
+    }
+});
+
+widthPickerBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const isHidden = widthMenu.classList.contains('hidden');
+    closeAllDropdowns();
+    if (isHidden) {
+        widthMenu.classList.remove('hidden');
+    }
+});
+
+exportMenuBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const isHidden = exportMenu.classList.contains('hidden');
+    closeAllDropdowns();
+    if (isHidden) {
+        exportMenu.classList.remove('hidden');
+    }
+});
+
 function setPenMode(active) {
     penMode = active;
     if (penMode) {
@@ -83,7 +148,21 @@ function setActiveTool(tool) {
         commitText();
     }
     activeTool = tool;
+    if (tool !== 'select') {
+        selectedElement = null;
+    }
+
+    const shapeTools = ['rect', 'circle', 'line', 'arrow', 'text'];
+    if (shapeTools.includes(tool)) {
+        shapesBtn.classList.add('bg-surface1', 'text-mauve', 'shadow-sm');
+        shapesBtn.classList.remove('text-subtext0');
+    } else {
+        shapesBtn.classList.remove('bg-surface1', 'text-mauve', 'shadow-sm');
+        shapesBtn.classList.add('text-subtext0');
+    }
+
     document.querySelectorAll('.tool-btn').forEach(btn => {
+        if (btn.id === 'btn-add-shapes') return;
         if (btn.dataset.tool === tool) {
             btn.classList.add('bg-surface1', 'text-mauve', 'shadow-sm');
             btn.classList.remove('text-subtext0');
@@ -95,52 +174,58 @@ function setActiveTool(tool) {
 
     if (tool === 'hand') {
         canvas.style.cursor = 'grab';
+    } else if (tool === 'select') {
+        canvas.style.cursor = 'default';
     } else if (tool === 'text') {
         canvas.style.cursor = 'text';
     } else {
         canvas.style.cursor = 'crosshair';
     }
+
+    render();
 }
 
 document.querySelectorAll('.tool-btn').forEach(btn => {
+    if (btn.id === 'btn-add-shapes') return;
     btn.addEventListener('click', () => {
-        setActiveTool(btn.dataset.tool);
+        if (btn.dataset.tool) {
+            setActiveTool(btn.dataset.tool);
+            closeAllDropdowns();
+        }
     });
 });
 
 function setActiveColor(color) {
     activeColor = color;
-    document.querySelectorAll('.color-btn').forEach(btn => {
-        if (btn.dataset.color === color) {
-            btn.classList.add('ring-2', 'ring-text', 'ring-offset-2', 'ring-offset-mantle', 'scale-110');
-        } else {
-            btn.classList.remove('ring-2', 'ring-text', 'ring-offset-2', 'ring-offset-mantle', 'scale-110');
-        }
-    });
+    activeColorSwatch.style.backgroundColor = color;
+    if (selectedElement) {
+        pushHistory();
+        selectedElement.color = color;
+        render();
+    }
 }
 
 document.querySelectorAll('.color-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         setActiveColor(btn.dataset.color);
+        closeAllDropdowns();
     });
 });
 
 function setActiveWidth(width) {
     activeWidth = Number(width);
-    document.querySelectorAll('.width-btn').forEach(btn => {
-        if (Number(btn.dataset.width) === activeWidth) {
-            btn.classList.add('bg-surface1', 'text-text');
-            btn.classList.remove('text-subtext0');
-        } else {
-            btn.classList.remove('bg-surface1', 'text-text');
-            btn.classList.add('text-subtext0');
-        }
-    });
+    activeWidthLabel.textContent = `${activeWidth}px`;
+    if (selectedElement) {
+        pushHistory();
+        selectedElement.width = activeWidth;
+        render();
+    }
 }
 
 document.querySelectorAll('.width-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         setActiveWidth(btn.dataset.width);
+        closeAllDropdowns();
     });
 });
 
@@ -186,6 +271,7 @@ function undo() {
     if (undoStack.length === 0) return;
     redoStack.push(JSON.parse(JSON.stringify(elements)));
     elements = undoStack.pop();
+    selectedElement = null;
     render();
 }
 
@@ -193,6 +279,7 @@ function redo() {
     if (redoStack.length === 0) return;
     undoStack.push(JSON.parse(JSON.stringify(elements)));
     elements = redoStack.pop();
+    selectedElement = null;
     render();
 }
 
@@ -203,33 +290,95 @@ document.getElementById('btn-clear').addEventListener('click', () => {
     if (elements.length === 0) return;
     pushHistory();
     elements = [];
+    selectedElement = null;
     render();
 });
 
-function renderPenStroke(targetCtx, points, color, width) {
-    if (!points || points.length === 0) return;
-    const hasStylusPressure = points.some(p => p.pressure !== 0.5 && p.pressure > 0);
-    const strokePoints = getStroke(
-        points.map(p => [p.x, p.y, p.pressure ?? 0.5]),
+function smoothPoints(points) {
+    if (!points || points.length <= 2) return points;
+    const result = [points[0]];
+    for (let i = 0; i < points.length - 1; i++) {
+        const p0 = points[Math.max(0, i - 1)];
+        const p1 = points[i];
+        const p2 = points[i + 1];
+        const p3 = points[Math.min(points.length - 1, i + 2)];
+
+        const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+        const steps = Math.max(1, Math.min(6, Math.floor(dist / 3)));
+
+        for (let s = 1; s <= steps; s++) {
+            const t = s / steps;
+            const t2 = t * t;
+            const t3 = t2 * t;
+
+            const x = 0.5 * (
+                (2 * p1.x) +
+                (-p0.x + p2.x) * t +
+                (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 +
+                (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3
+            );
+            const y = 0.5 * (
+                (2 * p1.y) +
+                (-p0.y + p2.y) * t +
+                (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 +
+                (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3
+            );
+            const pressure = p1.pressure + (p2.pressure - p1.pressure) * t;
+            result.push({ x, y, pressure });
+        }
+    }
+    return result;
+}
+
+function computeStrokePoints(rawPoints, width) {
+    if (!rawPoints || rawPoints.length === 0) return [];
+    const smoothed = smoothPoints(rawPoints);
+    const hasStylusPressure = smoothed.some(p => p.pressure !== 0.5 && p.pressure > 0);
+    return getStroke(
+        smoothed.map(p => [p.x, p.y, p.pressure ?? 0.5]),
         {
             size: width * 2,
-            thinning: 0.5,
-            smoothing: 0.5,
-            streamline: 0.5,
+            thinning: 0.18,
+            smoothing: 0.22,
+            streamline: 0.45,
             simulatePressure: !hasStylusPressure,
             last: true
         }
     );
-    if (strokePoints.length === 0) return;
+}
 
-    targetCtx.fillStyle = color;
+function drawStrokeToCanvas(targetCtx, strokePoints) {
+    if (strokePoints.length === 0) return;
     targetCtx.beginPath();
     targetCtx.moveTo(strokePoints[0][0], strokePoints[0][1]);
-    for (let i = 1; i < strokePoints.length; i++) {
-        targetCtx.lineTo(strokePoints[i][0], strokePoints[i][1]);
+    for (let i = 0; i < strokePoints.length; i++) {
+        const [x0, y0] = strokePoints[i];
+        const [x1, y1] = strokePoints[(i + 1) % strokePoints.length];
+        targetCtx.quadraticCurveTo(x0, y0, (x0 + x1) / 2, (y0 + y1) / 2);
     }
     targetCtx.closePath();
     targetCtx.fill();
+}
+
+function getSvgPathFromStroke(strokePoints) {
+    if (!strokePoints || strokePoints.length === 0) return '';
+    const d = strokePoints.reduce(
+        (acc, [x0, y0], i, arr) => {
+            const [x1, y1] = arr[(i + 1) % arr.length];
+            acc.push(x0.toFixed(1), y0.toFixed(1), ((x0 + x1) / 2).toFixed(1), ((y0 + y1) / 2).toFixed(1));
+            return acc;
+        },
+        ['M', strokePoints[0][0].toFixed(1), strokePoints[0][1].toFixed(1), 'Q']
+    );
+    d.push('Z');
+    return d.join(' ');
+}
+
+function renderPenStroke(targetCtx, points, color, width) {
+    const strokePoints = computeStrokePoints(points, width);
+    if (strokePoints.length === 0) return;
+    targetCtx.fillStyle = color;
+    drawStrokeToCanvas(targetCtx, strokePoints);
 }
 
 function renderArrow(targetCtx, el) {
@@ -311,25 +460,153 @@ function renderElement(targetCtx, el) {
     }
 }
 
+function distToSegment(px, py, x1, y1, x2, y2) {
+    const l2 = (x2 - x1) ** 2 + (y2 - y1) ** 2;
+    if (l2 === 0) return Math.hypot(px - x1, py - y1);
+    let t = ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / l2;
+    t = Math.max(0, Math.min(1, t));
+    return Math.hypot(px - (x1 + t * (x2 - x1)), py - (y1 + t * (y2 - y1)));
+}
+
+function getElementBounds(el) {
+    if (el.type === 'pen') {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const pt of el.points) {
+            minX = Math.min(minX, pt.x);
+            minY = Math.min(minY, pt.y);
+            maxX = Math.max(maxX, pt.x);
+            maxY = Math.max(maxY, pt.y);
+        }
+        const pad = Math.max(8, el.width);
+        return { minX: minX - pad, minY: minY - pad, maxX: maxX + pad, maxY: maxY + pad };
+    } else if (el.type === 'line' || el.type === 'arrow') {
+        const pad = Math.max(8, el.width);
+        return {
+            minX: Math.min(el.startX, el.endX) - pad,
+            minY: Math.min(el.startY, el.endY) - pad,
+            maxX: Math.max(el.startX, el.endX) + pad,
+            maxY: Math.max(el.startY, el.endY) + pad
+        };
+    } else if (el.type === 'rect') {
+        const pad = Math.max(6, el.width);
+        return {
+            minX: Math.min(el.startX, el.endX) - pad,
+            minY: Math.min(el.startY, el.endY) - pad,
+            maxX: Math.max(el.startX, el.endX) + pad,
+            maxY: Math.max(el.startY, el.endY) + pad
+        };
+    } else if (el.type === 'circle') {
+        const cx = (el.startX + el.endX) / 2;
+        const cy = (el.startY + el.endY) / 2;
+        const rx = Math.abs(el.endX - el.startX) / 2 + Math.max(6, el.width);
+        const ry = Math.abs(el.endY - el.startY) / 2 + Math.max(6, el.width);
+        return { minX: cx - rx, minY: cy - ry, maxX: cx + rx, maxY: cy + ry };
+    } else if (el.type === 'text') {
+        const lines = el.text.split('\n');
+        const maxLen = Math.max(...lines.map(l => l.length));
+        const fs = el.fontSize || 24;
+        return {
+            minX: el.x - 4,
+            minY: el.y - 4,
+            maxX: el.x + maxLen * fs * 0.7 + 4,
+            maxY: el.y + lines.length * fs * 1.3 + 4
+        };
+    }
+    return { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+}
+
+function hitTestElement(el, wx, wy) {
+    const b = getElementBounds(el);
+    if (wx < b.minX || wx > b.maxX || wy < b.minY || wy > b.maxY) {
+        return false;
+    }
+    if (el.type === 'pen') {
+        const threshold = Math.max(12, el.width * 2);
+        for (let i = 0; i < el.points.length - 1; i++) {
+            if (distToSegment(wx, wy, el.points[i].x, el.points[i].y, el.points[i + 1].x, el.points[i + 1].y) <= threshold) {
+                return true;
+            }
+        }
+        return false;
+    } else if (el.type === 'line' || el.type === 'arrow') {
+        return distToSegment(wx, wy, el.startX, el.startY, el.endX, el.endY) <= Math.max(10, el.width * 2);
+    } else if (el.type === 'rect') {
+        const rx = Math.min(el.startX, el.endX);
+        const ry = Math.min(el.startY, el.endY);
+        const rw = Math.abs(el.endX - el.startX);
+        const rh = Math.abs(el.endY - el.startY);
+        return wx >= rx - 6 && wx <= rx + rw + 6 && wy >= ry - 6 && wy <= ry + rh + 6;
+    } else if (el.type === 'circle') {
+        const cx = (el.startX + el.endX) / 2;
+        const cy = (el.startY + el.endY) / 2;
+        const rx = Math.abs(el.endX - el.startX) / 2;
+        const ry = Math.abs(el.endY - el.startY) / 2;
+        if (rx === 0 || ry === 0) return false;
+        return (((wx - cx) / rx) ** 2 + ((wy - cy) / ry) ** 2) <= 1.25;
+    } else if (el.type === 'text') {
+        return true;
+    }
+    return false;
+}
+
+function renderSelectionOutline(targetCtx, el) {
+    const b = getElementBounds(el);
+    targetCtx.save();
+    targetCtx.strokeStyle = '#cba6f7';
+    targetCtx.lineWidth = 1.5;
+    targetCtx.setLineDash([4, 4]);
+    const w = b.maxX - b.minX;
+    const h = b.maxY - b.minY;
+    targetCtx.strokeRect(b.minX, b.minY, w, h);
+
+    targetCtx.setLineDash([]);
+    targetCtx.fillStyle = '#cba6f7';
+    const corners = [
+        [b.minX, b.minY],
+        [b.maxX, b.minY],
+        [b.maxX, b.maxY],
+        [b.minX, b.maxY]
+    ];
+    for (const [cx, cy] of corners) {
+        targetCtx.beginPath();
+        targetCtx.arc(cx, cy, 3.5, 0, Math.PI * 2);
+        targetCtx.fill();
+    }
+    targetCtx.restore();
+}
+
 function renderLaserTrail(targetCtx) {
     if (laserPoints.length < 2) return;
     const now = performance.now();
+    targetCtx.save();
     targetCtx.lineCap = 'round';
     targetCtx.lineJoin = 'round';
 
     for (let i = 1; i < laserPoints.length; i++) {
-        const p1 = laserPoints[i - 1];
-        const p2 = laserPoints[i];
-        const age = now - p2.time;
+        const p0 = laserPoints[i - 1];
+        const p1 = laserPoints[i];
+        const age = now - p1.time;
         if (age >= 800) continue;
         const alpha = Math.max(0, 1 - age / 800);
         targetCtx.strokeStyle = `rgba(243, 139, 168, ${alpha.toFixed(3)})`;
         targetCtx.lineWidth = Math.max(2, 6 * alpha);
         targetCtx.beginPath();
-        targetCtx.moveTo(p1.x, p1.y);
-        targetCtx.lineTo(p2.x, p2.y);
+        targetCtx.moveTo(p0.x, p0.y);
+        const midX = (p0.x + p1.x) / 2;
+        const midY = (p0.y + p1.y) / 2;
+        targetCtx.quadraticCurveTo(p0.x, p0.y, midX, midY);
+        targetCtx.lineTo(p1.x, p1.y);
         targetCtx.stroke();
     }
+
+    const tip = laserPoints[laserPoints.length - 1];
+    if (tip && now - tip.time < 800) {
+        targetCtx.fillStyle = '#f38ba8';
+        targetCtx.beginPath();
+        targetCtx.arc(tip.x, tip.y, 4, 0, Math.PI * 2);
+        targetCtx.fill();
+    }
+    targetCtx.restore();
 }
 
 function render() {
@@ -347,6 +624,10 @@ function render() {
 
     if (currentElement) {
         renderElement(ctx, currentElement);
+    }
+
+    if (selectedElement) {
+        renderSelectionOutline(ctx, selectedElement);
     }
 
     renderLaserTrail(ctx);
@@ -418,6 +699,16 @@ textInput.addEventListener('blur', () => {
     }
 });
 
+function extractPointerEvents(e) {
+    if (typeof e.getCoalescedEvents === 'function') {
+        const coalesced = e.getCoalescedEvents();
+        if (coalesced && coalesced.length > 0) {
+            return coalesced;
+        }
+    }
+    return [e];
+}
+
 canvas.addEventListener('pointerdown', (e) => {
     if (e.pointerType === 'pen' && !penMode) {
         setPenMode(true);
@@ -430,6 +721,7 @@ canvas.addEventListener('pointerdown', (e) => {
             currentElement = null;
             render();
         }
+        isDraggingSelection = false;
         const pts = Array.from(activePointers.values());
         prevTouchCenter = {
             x: (pts[0].x + pts[1].x) / 2,
@@ -456,6 +748,25 @@ canvas.addEventListener('pointerdown', (e) => {
 
     const world = screenToWorld(e.clientX, e.clientY);
 
+    if (activeTool === 'select') {
+        let hit = null;
+        for (let i = elements.length - 1; i >= 0; i--) {
+            if (hitTestElement(elements[i], world.x, world.y)) {
+                hit = elements[i];
+                break;
+            }
+        }
+        selectedElement = hit;
+        if (selectedElement) {
+            isDraggingSelection = true;
+            selectionStartWorld = { x: world.x, y: world.y };
+            selectionSnapshot = JSON.parse(JSON.stringify(selectedElement));
+            canvas.setPointerCapture(e.pointerId);
+        }
+        render();
+        return;
+    }
+
     if (activeTool === 'text') {
         openTextInput(e.clientX, e.clientY, world.x, world.y);
         return;
@@ -463,7 +774,11 @@ canvas.addEventListener('pointerdown', (e) => {
 
     if (activeTool === 'laser') {
         isDrawingLaser = true;
-        laserPoints.push({ x: world.x, y: world.y, time: performance.now() });
+        const events = extractPointerEvents(e);
+        for (const ev of events) {
+            const w = screenToWorld(ev.clientX, ev.clientY);
+            laserPoints.push({ x: w.x, y: w.y, time: performance.now() });
+        }
         if (!laserAnimFrame) {
             laserAnimFrame = requestAnimationFrame(tickLaser);
         }
@@ -532,16 +847,56 @@ canvas.addEventListener('pointermove', (e) => {
         return;
     }
 
-    if (isDrawingLaser) {
+    if (isDraggingSelection && selectedElement && selectionSnapshot) {
         const world = screenToWorld(e.clientX, e.clientY);
-        laserPoints.push({ x: world.x, y: world.y, time: performance.now() });
+        const dx = world.x - selectionStartWorld.x;
+        const dy = world.y - selectionStartWorld.y;
+
+        if (selectedElement.type === 'pen') {
+            selectedElement.points = selectionSnapshot.points.map(p => ({
+                x: p.x + dx,
+                y: p.y + dy,
+                pressure: p.pressure
+            }));
+        } else if (selectedElement.type === 'text') {
+            selectedElement.x = selectionSnapshot.x + dx;
+            selectedElement.y = selectionSnapshot.y + dy;
+        } else {
+            selectedElement.startX = selectionSnapshot.startX + dx;
+            selectedElement.startY = selectionSnapshot.startY + dy;
+            selectedElement.endX = selectionSnapshot.endX + dx;
+            selectedElement.endY = selectionSnapshot.endY + dy;
+        }
+        render();
+        return;
+    }
+
+    if (activeTool === 'select') {
+        const world = screenToWorld(e.clientX, e.clientY);
+        let hovering = false;
+        for (let i = elements.length - 1; i >= 0; i--) {
+            if (hitTestElement(elements[i], world.x, world.y)) {
+                hovering = true;
+                break;
+            }
+        }
+        canvas.style.cursor = hovering ? 'move' : 'default';
+        return;
+    }
+
+    if (isDrawingLaser) {
+        const events = extractPointerEvents(e);
+        for (const ev of events) {
+            const world = screenToWorld(ev.clientX, ev.clientY);
+            laserPoints.push({ x: world.x, y: world.y, time: performance.now() });
+        }
         return;
     }
 
     if (!currentElement) return;
 
     if (currentElement.type === 'pen') {
-        const events = (typeof e.getCoalescedEvents === 'function') ? e.getCoalescedEvents() : [e];
+        const events = extractPointerEvents(e);
         for (const ev of events) {
             const w = screenToWorld(ev.clientX, ev.clientY);
             const p = (ev.pressure && ev.pressure > 0) ? ev.pressure : 0.5;
@@ -563,7 +918,18 @@ function endPointer(e) {
 
     if (isPanning) {
         isPanning = false;
-        canvas.style.cursor = activeTool === 'hand' ? 'grab' : 'crosshair';
+        canvas.style.cursor = activeTool === 'hand' ? 'grab' : (activeTool === 'select' ? 'default' : 'crosshair');
+    }
+
+    if (isDraggingSelection) {
+        const world = screenToWorld(e.clientX, e.clientY);
+        const dx = world.x - selectionStartWorld.x;
+        const dy = world.y - selectionStartWorld.y;
+        if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
+            pushHistory();
+        }
+        isDraggingSelection = false;
+        selectionSnapshot = null;
     }
 
     if (isDrawingLaser) {
@@ -609,6 +975,26 @@ window.addEventListener('keydown', (e) => {
         return;
     }
 
+    if (e.key === 'Backspace' || e.key === 'Delete') {
+        if (selectedElement) {
+            e.preventDefault();
+            pushHistory();
+            elements = elements.filter(el => el !== selectedElement);
+            selectedElement = null;
+            render();
+            return;
+        }
+    }
+
+    if (e.key === 'Escape') {
+        if (selectedElement) {
+            selectedElement = null;
+            render();
+            return;
+        }
+        closeAllDropdowns();
+    }
+
     if (e.key === '+' || e.key === '=') {
         e.preventDefault();
         applyZoom(zoom * 1.25, window.innerWidth / 2, window.innerHeight / 2);
@@ -630,6 +1016,8 @@ window.addEventListener('keydown', (e) => {
 
     const key = e.key.toLowerCase();
     const toolMap = {
+        'v': 'select',
+        '1': 'select',
         'h': 'hand',
         'p': 'pen',
         'l': 'line',
@@ -655,41 +1043,11 @@ function calculateBounds() {
     let maxY = -Infinity;
 
     for (const el of elements) {
-        if (el.type === 'pen') {
-            for (const pt of el.points) {
-                minX = Math.min(minX, pt.x - el.width);
-                minY = Math.min(minY, pt.y - el.width);
-                maxX = Math.max(maxX, pt.x + el.width);
-                maxY = Math.max(maxY, pt.y + el.width);
-            }
-        } else if (el.type === 'line' || el.type === 'arrow') {
-            minX = Math.min(minX, el.startX - el.width * 2, el.endX - el.width * 2);
-            minY = Math.min(minY, el.startY - el.width * 2, el.endY - el.width * 2);
-            maxX = Math.max(maxX, el.startX + el.width * 2, el.endX + el.width * 2);
-            maxY = Math.max(maxY, el.startY + el.width * 2, el.endY + el.width * 2);
-        } else if (el.type === 'rect') {
-            minX = Math.min(minX, el.startX - el.width, el.endX - el.width);
-            minY = Math.min(minY, el.startY - el.width, el.endY - el.width);
-            maxX = Math.max(maxX, el.startX + el.width, el.endX + el.width);
-            maxY = Math.max(maxY, el.startY + el.width, el.endY + el.width);
-        } else if (el.type === 'circle') {
-            const cx = (el.startX + el.endX) / 2;
-            const cy = (el.startY + el.endY) / 2;
-            const rx = Math.abs(el.endX - el.startX) / 2 + el.width;
-            const ry = Math.abs(el.endY - el.startY) / 2 + el.width;
-            minX = Math.min(minX, cx - rx);
-            minY = Math.min(minY, cy - ry);
-            maxX = Math.max(maxX, cx + rx);
-            maxY = Math.max(maxY, cy + ry);
-        } else if (el.type === 'text') {
-            const lines = el.text.split('\n');
-            const maxLen = Math.max(...lines.map(l => l.length));
-            const fs = el.fontSize || 24;
-            minX = Math.min(minX, el.x);
-            minY = Math.min(minY, el.y);
-            maxX = Math.max(maxX, el.x + maxLen * fs * 0.7);
-            maxY = Math.max(maxY, el.y + lines.length * fs * 1.3);
-        }
+        const b = getElementBounds(el);
+        minX = Math.min(minX, b.minX);
+        minY = Math.min(minY, b.minY);
+        maxX = Math.max(maxX, b.maxX);
+        maxY = Math.max(maxY, b.maxY);
     }
 
     const pad = 40;
@@ -709,6 +1067,7 @@ function calculateBounds() {
 }
 
 document.getElementById('btn-export-png').addEventListener('click', () => {
+    closeAllDropdowns();
     const bounds = calculateBounds();
     const offCanvas = document.createElement('canvas');
     offCanvas.width = bounds.width * dpr;
@@ -746,6 +1105,7 @@ function escapeXml(unsafe) {
 }
 
 document.getElementById('btn-export-svg').addEventListener('click', () => {
+    closeAllDropdowns();
     const bounds = calculateBounds();
     let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${bounds.width} ${bounds.height}" width="${bounds.width}" height="${bounds.height}">\n`;
     svg += `<style>@import url('/static/css/virgil.css'); text { font-family: 'Virgil', cursive, sans-serif; }</style>\n`;
@@ -754,21 +1114,10 @@ document.getElementById('btn-export-svg').addEventListener('click', () => {
 
     for (const el of elements) {
         if (el.type === 'pen') {
-            const hasStylusPressure = el.points.some(p => p.pressure !== 0.5 && p.pressure > 0);
-            const strokePoints = getStroke(
-                el.points.map(p => [p.x, p.y, p.pressure ?? 0.5]),
-                {
-                    size: el.width * 2,
-                    thinning: 0.5,
-                    smoothing: 0.5,
-                    streamline: 0.5,
-                    simulatePressure: !hasStylusPressure,
-                    last: true
-                }
-            );
-            if (strokePoints.length > 0) {
-                const ptsStr = strokePoints.map(p => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
-                svg += `  <polygon points="${ptsStr}" fill="${el.color}" />\n`;
+            const strokePoints = computeStrokePoints(el.points, el.width);
+            const pathData = getSvgPathFromStroke(strokePoints);
+            if (pathData) {
+                svg += `  <path d="${pathData}" fill="${el.color}" />\n`;
             }
         } else if (el.type === 'line') {
             svg += `  <line x1="${el.startX}" y1="${el.startY}" x2="${el.endX}" y2="${el.endY}" stroke="${el.color}" stroke-width="${el.width}" stroke-linecap="round" />\n`;
