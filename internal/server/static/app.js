@@ -15,7 +15,7 @@ const colorPickerBtn = document.getElementById('btn-color-picker');
 const activeColorSwatch = document.getElementById('active-color-swatch');
 const colorModal = document.getElementById('color-modal');
 const widthPickerBtn = document.getElementById('btn-width-picker');
-const activeWidthLabel = document.getElementById('active-width-label');
+const activeWidthBar = document.getElementById('active-width-bar');
 const widthMenu = document.getElementById('width-menu');
 const exportMenuBtn = document.getElementById('btn-export-menu');
 const exportMenu = document.getElementById('export-menu');
@@ -33,10 +33,13 @@ let elements = [];
 let undoStack = [];
 let redoStack = [];
 
-let selectedElement = null;
+let selectedElements = new Set();
 let isDraggingSelection = false;
 let selectionStartWorld = { x: 0, y: 0 };
-let selectionSnapshot = null;
+let selectionSnapshots = new Map();
+let isBoxSelecting = false;
+let boxSelectStartWorld = { x: 0, y: 0 };
+let boxSelectCurrentWorld = { x: 0, y: 0 };
 
 let currentElement = null;
 let isPanning = false;
@@ -166,7 +169,9 @@ function setActiveTool(tool) {
     }
     activeTool = tool;
     if (tool !== 'select') {
-        selectedElement = null;
+        selectedElements.clear();
+        isBoxSelecting = false;
+        isDraggingSelection = false;
     }
 
     const shapeTools = ['rect', 'circle', 'line', 'arrow', 'text'];
@@ -215,9 +220,11 @@ document.querySelectorAll('.tool-btn').forEach(btn => {
 function setActiveColor(color) {
     activeColor = color;
     activeColorSwatch.style.backgroundColor = color;
-    if (selectedElement) {
+    if (selectedElements.size > 0) {
         pushHistory();
-        selectedElement.color = color;
+        for (const el of selectedElements) {
+            el.color = color;
+        }
         render();
     }
 }
@@ -229,12 +236,47 @@ document.querySelectorAll('.color-btn').forEach(btn => {
     });
 });
 
+function getFontSizeForWidth(w) {
+    const sizeMap = {
+        0.5: 14,
+        1: 18,
+        2: 22,
+        4: 28,
+        6: 36,
+        8: 48,
+        12: 64,
+        16: 80,
+        24: 104
+    };
+    return sizeMap[w] || Math.round(Math.max(12, w * 5));
+}
+
 function setActiveWidth(width) {
     activeWidth = Number(width);
-    activeWidthLabel.textContent = `${activeWidth}px`;
-    if (selectedElement) {
+    if (activeWidthBar) {
+        if (activeWidth === 0.5) {
+            activeWidthBar.style.height = '1px';
+            activeWidthBar.style.opacity = '0.7';
+        } else {
+            activeWidthBar.style.height = `${Math.min(8, Math.max(1, activeWidth))}px`;
+            activeWidthBar.style.opacity = '1';
+        }
+    }
+    document.querySelectorAll('.width-btn').forEach(btn => {
+        if (Number(btn.dataset.width) === activeWidth) {
+            btn.classList.add('bg-surface0');
+        } else {
+            btn.classList.remove('bg-surface0');
+        }
+    });
+    if (selectedElements.size > 0) {
         pushHistory();
-        selectedElement.width = activeWidth;
+        for (const el of selectedElements) {
+            el.width = activeWidth;
+            if (el.type === 'text') {
+                el.fontSize = getFontSizeForWidth(activeWidth);
+            }
+        }
         render();
     }
 }
@@ -288,7 +330,7 @@ function undo() {
     if (undoStack.length === 0) return;
     redoStack.push(JSON.parse(JSON.stringify(elements)));
     elements = undoStack.pop();
-    selectedElement = null;
+    selectedElements.clear();
     render();
 }
 
@@ -296,7 +338,7 @@ function redo() {
     if (redoStack.length === 0) return;
     undoStack.push(JSON.parse(JSON.stringify(elements)));
     elements = redoStack.pop();
-    selectedElement = null;
+    selectedElements.clear();
     render();
 }
 
@@ -307,7 +349,7 @@ document.getElementById('btn-clear').addEventListener('click', () => {
     if (elements.length === 0) return;
     pushHistory();
     elements = [];
-    selectedElement = null;
+    selectedElements.clear();
     render();
 });
 
@@ -473,11 +515,12 @@ function renderElement(targetCtx, el) {
             targetCtx.stroke();
         }
     } else if (el.type === 'text') {
+        const fs = el.fontSize || getFontSizeForWidth(el.width || 4);
         targetCtx.fillStyle = el.color;
-        targetCtx.font = `${el.fontSize || 24}px 'Virgil', cursive, sans-serif`;
+        targetCtx.font = `${fs}px 'Virgil', cursive, sans-serif`;
         targetCtx.textBaseline = 'top';
         const lines = el.text.split('\n');
-        const lineHeight = (el.fontSize || 24) * 1.3;
+        const lineHeight = fs * 1.3;
         lines.forEach((line, idx) => {
             targetCtx.fillText(line, el.x, el.y + idx * lineHeight);
         });
@@ -501,10 +544,13 @@ function getElementBounds(el) {
             maxX = Math.max(maxX, pt.x);
             maxY = Math.max(maxY, pt.y);
         }
-        const pad = Math.max(8, el.width);
+        if (minX === Infinity) {
+            return { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+        }
+        const pad = Math.max(12, (el.width || 4) * 2);
         return { minX: minX - pad, minY: minY - pad, maxX: maxX + pad, maxY: maxY + pad };
     } else if (el.type === 'line' || el.type === 'arrow') {
-        const pad = Math.max(8, el.width);
+        const pad = Math.max(8, el.width || 4);
         return {
             minX: Math.min(el.startX, el.endX) - pad,
             minY: Math.min(el.startY, el.endY) - pad,
@@ -512,7 +558,7 @@ function getElementBounds(el) {
             maxY: Math.max(el.startY, el.endY) + pad
         };
     } else if (el.type === 'rect') {
-        const pad = Math.max(6, el.width);
+        const pad = Math.max(6, el.width || 4);
         return {
             minX: Math.min(el.startX, el.endX) - pad,
             minY: Math.min(el.startY, el.endY) - pad,
@@ -522,13 +568,13 @@ function getElementBounds(el) {
     } else if (el.type === 'circle') {
         const cx = (el.startX + el.endX) / 2;
         const cy = (el.startY + el.endY) / 2;
-        const rx = Math.abs(el.endX - el.startX) / 2 + Math.max(6, el.width);
-        const ry = Math.abs(el.endY - el.startY) / 2 + Math.max(6, el.width);
+        const rx = Math.abs(el.endX - el.startX) / 2 + Math.max(6, el.width || 4);
+        const ry = Math.abs(el.endY - el.startY) / 2 + Math.max(6, el.width || 4);
         return { minX: cx - rx, minY: cy - ry, maxX: cx + rx, maxY: cy + ry };
     } else if (el.type === 'text') {
         const lines = el.text.split('\n');
         const maxLen = Math.max(...lines.map(l => l.length));
-        const fs = el.fontSize || 24;
+        const fs = el.fontSize || getFontSizeForWidth(el.width || 4);
         return {
             minX: el.x - 4,
             minY: el.y - 4,
@@ -545,7 +591,16 @@ function hitTestElement(el, wx, wy) {
         return false;
     }
     if (el.type === 'pen') {
-        const threshold = Math.max(12, el.width * 2);
+        const threshold = Math.max(12, (el.width || 4) * 2);
+        if (!el.points || el.points.length === 0) return false;
+        if (el.points.length === 1) {
+            return Math.hypot(wx - el.points[0].x, wy - el.points[0].y) <= threshold;
+        }
+        for (let i = 0; i < el.points.length; i++) {
+            if (Math.hypot(wx - el.points[i].x, wy - el.points[i].y) <= threshold) {
+                return true;
+            }
+        }
         for (let i = 0; i < el.points.length - 1; i++) {
             if (distToSegment(wx, wy, el.points[i].x, el.points[i].y, el.points[i + 1].x, el.points[i + 1].y) <= threshold) {
                 return true;
@@ -553,7 +608,7 @@ function hitTestElement(el, wx, wy) {
         }
         return false;
     } else if (el.type === 'line' || el.type === 'arrow') {
-        return distToSegment(wx, wy, el.startX, el.startY, el.endX, el.endY) <= Math.max(10, el.width * 2);
+        return distToSegment(wx, wy, el.startX, el.startY, el.endX, el.endY) <= Math.max(10, (el.width || 4) * 2);
     } else if (el.type === 'rect') {
         const rx = Math.min(el.startX, el.endX);
         const ry = Math.min(el.startY, el.endY);
@@ -571,6 +626,10 @@ function hitTestElement(el, wx, wy) {
         return true;
     }
     return false;
+}
+
+function boundsOverlap(b1, b2) {
+    return !(b1.maxX < b2.minX || b1.minX > b2.maxX || b1.maxY < b2.minY || b1.minY > b2.maxY);
 }
 
 function renderSelectionOutline(targetCtx, el) {
@@ -602,52 +661,95 @@ function renderSelectionOutline(targetCtx, el) {
 function renderLaserTrail(targetCtx) {
     if (laserTrails.length === 0) return;
     const now = performance.now();
-    const duration = 750;
+    const duration = 800;
 
     for (const trail of laserTrails) {
-        if (trail.length < 2) continue;
+        if (trail.length === 0) continue;
+
+        if (trail.length === 1) {
+            const p = trail[0];
+            const age = now - p.time;
+            if (age < duration) {
+                const progress = Math.max(0, 1 - age / duration);
+                targetCtx.save();
+                targetCtx.fillStyle = '#f38ba8';
+                targetCtx.shadowColor = '#f38ba8';
+                targetCtx.shadowBlur = 8 * progress;
+                targetCtx.beginPath();
+                targetCtx.arc(p.x, p.y, Math.max(1, 4 * progress), 0, Math.PI * 2);
+                targetCtx.fill();
+                targetCtx.restore();
+            }
+            continue;
+        }
 
         const pts = [];
         for (const p of trail) {
-            if (pts.length === 0 || Math.hypot(p.x - pts[pts.length - 1].x, p.y - pts[pts.length - 1].y) >= 2) {
+            if (pts.length === 0 || Math.hypot(p.x - pts[pts.length - 1].x, p.y - pts[pts.length - 1].y) >= 1.5) {
                 pts.push(p);
             }
         }
-        if (pts.length < 2) continue;
+        if (pts.length < 2) {
+            if (pts.length === 1) {
+                const p = pts[0];
+                const age = now - p.time;
+                if (age < duration) {
+                    const progress = Math.max(0, 1 - age / duration);
+                    targetCtx.save();
+                    targetCtx.fillStyle = '#f38ba8';
+                    targetCtx.shadowColor = '#f38ba8';
+                    targetCtx.shadowBlur = 8 * progress;
+                    targetCtx.beginPath();
+                    targetCtx.arc(p.x, p.y, Math.max(1, 4 * progress), 0, Math.PI * 2);
+                    targetCtx.fill();
+                    targetCtx.restore();
+                }
+            }
+            continue;
+        }
 
-        const numChunks = Math.min(12, Math.max(1, Math.floor(pts.length / 4)));
-        const chunkSize = Math.ceil((pts.length - 1) / numChunks);
+        const strokePoints = getStroke(
+            pts.map(p => {
+                const age = now - p.time;
+                const progress = Math.max(0.01, 1 - age / duration);
+                return [p.x, p.y, progress];
+            }),
+            {
+                size: 8,
+                thinning: 0.85,
+                smoothing: 0.35,
+                streamline: 0.2,
+                simulatePressure: false,
+                last: true
+            }
+        );
 
-        for (let c = 0; c < numChunks; c++) {
-            const startIdx = c * chunkSize;
-            const endIdx = Math.min(pts.length - 1, (c + 1) * chunkSize);
-            if (startIdx >= endIdx) break;
-
-            const avgTime = (pts[startIdx].time + pts[endIdx].time) / 2;
-            const age = now - avgTime;
-            if (age >= duration) continue;
-
-            const progress = Math.max(0, 1 - age / duration);
-            const alpha = Math.min(1, Math.max(0.04, progress));
-            const width = Math.max(1.5, 5.5 * progress);
+        if (strokePoints.length > 0) {
+            const tailAge = now - pts[0].time;
+            const headAge = now - pts[pts.length - 1].time;
+            const avgProgress = Math.max(0.1, 1 - (tailAge + headAge) / (2 * duration));
 
             targetCtx.save();
-            targetCtx.strokeStyle = `rgba(243, 139, 168, ${alpha.toFixed(3)})`;
-            targetCtx.lineWidth = width;
-            targetCtx.lineCap = 'round';
-            targetCtx.lineJoin = 'round';
+            targetCtx.fillStyle = `rgba(243, 139, 168, ${Math.min(1, avgProgress + 0.1).toFixed(3)})`;
+            targetCtx.shadowColor = '#f38ba8';
+            targetCtx.shadowBlur = 6;
+            drawStrokeToCanvas(targetCtx, strokePoints);
+            targetCtx.restore();
+        }
 
+        if (trail === currentLaserTrail && isDrawingLaser && pts.length > 0) {
+            const head = pts[pts.length - 1];
+            targetCtx.save();
+            targetCtx.fillStyle = '#f38ba8';
+            targetCtx.shadowColor = '#f38ba8';
+            targetCtx.shadowBlur = 10;
             targetCtx.beginPath();
-            targetCtx.moveTo(pts[startIdx].x, pts[startIdx].y);
-            for (let j = startIdx; j < endIdx; j++) {
-                const p0 = pts[j];
-                const p1 = pts[j + 1];
-                const midX = (p0.x + p1.x) / 2;
-                const midY = (p0.y + p1.y) / 2;
-                targetCtx.quadraticCurveTo(p0.x, p0.y, midX, midY);
-            }
-            targetCtx.lineTo(pts[endIdx].x, pts[endIdx].y);
-            targetCtx.stroke();
+            targetCtx.arc(head.x, head.y, 4, 0, Math.PI * 2);
+            targetCtx.fill();
+            targetCtx.fillStyle = '#ffffff';
+            targetCtx.beginPath();
+            targetCtx.arc(head.x, head.y, 1.8, 0, Math.PI * 2);
+            targetCtx.fill();
             targetCtx.restore();
         }
     }
@@ -670,8 +772,23 @@ function render() {
         renderElement(ctx, currentElement);
     }
 
-    if (selectedElement) {
-        renderSelectionOutline(ctx, selectedElement);
+    for (const selEl of selectedElements) {
+        renderSelectionOutline(ctx, selEl);
+    }
+
+    if (isBoxSelecting) {
+        const minX = Math.min(boxSelectStartWorld.x, boxSelectCurrentWorld.x);
+        const maxX = Math.max(boxSelectStartWorld.x, boxSelectCurrentWorld.x);
+        const minY = Math.min(boxSelectStartWorld.y, boxSelectCurrentWorld.y);
+        const maxY = Math.max(boxSelectStartWorld.y, boxSelectCurrentWorld.y);
+        ctx.save();
+        ctx.fillStyle = 'rgba(203, 166, 247, 0.12)';
+        ctx.strokeStyle = '#cba6f7';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([4, 4]);
+        ctx.fillRect(minX, minY, maxX - minX, maxY - minY);
+        ctx.strokeRect(minX, minY, maxX - minX, maxY - minY);
+        ctx.restore();
     }
 
     renderLaserTrail(ctx);
@@ -681,7 +798,7 @@ function render() {
 
 function tickLaser() {
     const now = performance.now();
-    const duration = 750;
+    const duration = 800;
 
     for (let i = laserTrails.length - 1; i >= 0; i--) {
         const trail = laserTrails[i];
@@ -706,8 +823,13 @@ function openTextInput(screenX, screenY, worldX, worldY) {
     pendingTextPos = { x: worldX, y: worldY };
     textContainer.style.left = `${screenX}px`;
     textContainer.style.top = `${screenY}px`;
+    const fs = getFontSizeForWidth(activeWidth);
+    textInput.style.fontSize = `${Math.round(fs * zoom)}px`;
+    textInput.style.lineHeight = `${Math.round(fs * zoom * 1.3)}px`;
     textInput.style.color = activeColor;
     textInput.value = '';
+    textInput.style.width = '140px';
+    textInput.style.height = `${Math.round(fs * zoom * 1.5)}px`;
     textContainer.classList.remove('hidden');
     setTimeout(() => {
         textInput.focus();
@@ -718,13 +840,15 @@ function commitText() {
     const text = textInput.value.trim();
     if (text.length > 0 && pendingTextPos) {
         pushHistory();
+        const fs = getFontSizeForWidth(activeWidth);
         elements.push({
             type: 'text',
             text: textInput.value,
             x: pendingTextPos.x,
             y: pendingTextPos.y,
             color: activeColor,
-            fontSize: 24
+            width: activeWidth,
+            fontSize: fs
         });
     }
     textInput.value = '';
@@ -732,6 +856,13 @@ function commitText() {
     textContainer.classList.add('hidden');
     render();
 }
+
+textInput.addEventListener('input', () => {
+    textInput.style.height = 'auto';
+    textInput.style.height = `${textInput.scrollHeight}px`;
+    textInput.style.width = 'auto';
+    textInput.style.width = `${Math.max(140, textInput.scrollWidth + 10)}px`;
+});
 
 function cancelText() {
     textInput.value = '';
@@ -812,11 +943,38 @@ canvas.addEventListener('pointerdown', (e) => {
                 break;
             }
         }
-        selectedElement = hit;
-        if (selectedElement) {
-            isDraggingSelection = true;
-            selectionStartWorld = { x: world.x, y: world.y };
-            selectionSnapshot = JSON.parse(JSON.stringify(selectedElement));
+
+        const isModifier = e.metaKey || e.ctrlKey;
+
+        if (hit) {
+            if (isModifier) {
+                if (selectedElements.has(hit)) {
+                    selectedElements.delete(hit);
+                } else {
+                    selectedElements.add(hit);
+                }
+            } else {
+                if (!selectedElements.has(hit)) {
+                    selectedElements.clear();
+                    selectedElements.add(hit);
+                }
+            }
+            if (selectedElements.has(hit)) {
+                isDraggingSelection = true;
+                selectionStartWorld = { x: world.x, y: world.y };
+                selectionSnapshots.clear();
+                for (const selEl of selectedElements) {
+                    selectionSnapshots.set(selEl, JSON.parse(JSON.stringify(selEl)));
+                }
+                canvas.setPointerCapture(e.pointerId);
+            }
+        } else {
+            if (!isModifier) {
+                selectedElements.clear();
+            }
+            isBoxSelecting = true;
+            boxSelectStartWorld = { x: world.x, y: world.y };
+            boxSelectCurrentWorld = { x: world.x, y: world.y };
             canvas.setPointerCapture(e.pointerId);
         }
         render();
@@ -905,25 +1063,48 @@ canvas.addEventListener('pointermove', (e) => {
         return;
     }
 
-    if (isDraggingSelection && selectedElement && selectionSnapshot) {
+    if (isDraggingSelection && selectionSnapshots.size > 0) {
         const world = screenToWorld(e.clientX, e.clientY);
         const dx = world.x - selectionStartWorld.x;
         const dy = world.y - selectionStartWorld.y;
 
-        if (selectedElement.type === 'pen') {
-            selectedElement.points = selectionSnapshot.points.map(p => ({
-                x: p.x + dx,
-                y: p.y + dy,
-                pressure: p.pressure
-            }));
-        } else if (selectedElement.type === 'text') {
-            selectedElement.x = selectionSnapshot.x + dx;
-            selectedElement.y = selectionSnapshot.y + dy;
-        } else {
-            selectedElement.startX = selectionSnapshot.startX + dx;
-            selectedElement.startY = selectionSnapshot.startY + dy;
-            selectedElement.endX = selectionSnapshot.endX + dx;
-            selectedElement.endY = selectionSnapshot.endY + dy;
+        for (const [selEl, snap] of selectionSnapshots.entries()) {
+            if (selEl.type === 'pen') {
+                selEl.points = snap.points.map(p => ({
+                    x: p.x + dx,
+                    y: p.y + dy,
+                    pressure: p.pressure
+                }));
+            } else if (selEl.type === 'text') {
+                selEl.x = snap.x + dx;
+                selEl.y = snap.y + dy;
+            } else {
+                selEl.startX = snap.startX + dx;
+                selEl.startY = snap.startY + dy;
+                selEl.endX = snap.endX + dx;
+                selEl.endY = snap.endY + dy;
+            }
+        }
+        render();
+        return;
+    }
+
+    if (isBoxSelecting) {
+        boxSelectCurrentWorld = screenToWorld(e.clientX, e.clientY);
+        const box = {
+            minX: Math.min(boxSelectStartWorld.x, boxSelectCurrentWorld.x),
+            maxX: Math.max(boxSelectStartWorld.x, boxSelectCurrentWorld.x),
+            minY: Math.min(boxSelectStartWorld.y, boxSelectCurrentWorld.y),
+            maxY: Math.max(boxSelectStartWorld.y, boxSelectCurrentWorld.y)
+        };
+        if (!e.metaKey && !e.ctrlKey) {
+            selectedElements.clear();
+        }
+        for (const el of elements) {
+            const eb = getElementBounds(el);
+            if (boundsOverlap(box, eb)) {
+                selectedElements.add(el);
+            }
         }
         render();
         return;
@@ -987,7 +1168,12 @@ function endPointer(e) {
             pushHistory();
         }
         isDraggingSelection = false;
-        selectionSnapshot = null;
+        selectionSnapshots.clear();
+    }
+
+    if (isBoxSelecting) {
+        isBoxSelecting = false;
+        render();
     }
 
     if (isDrawingLaser) {
@@ -1035,19 +1221,19 @@ window.addEventListener('keydown', (e) => {
     }
 
     if (e.key === 'Backspace' || e.key === 'Delete') {
-        if (selectedElement) {
+        if (selectedElements.size > 0) {
             e.preventDefault();
             pushHistory();
-            elements = elements.filter(el => el !== selectedElement);
-            selectedElement = null;
+            elements = elements.filter(el => !selectedElements.has(el));
+            selectedElements.clear();
             render();
             return;
         }
     }
 
     if (e.key === 'Escape') {
-        if (selectedElement) {
-            selectedElement = null;
+        if (selectedElements.size > 0) {
+            selectedElements.clear();
             render();
             return;
         }
@@ -1213,7 +1399,7 @@ document.getElementById('btn-export-svg').addEventListener('click', () => {
                 svg += `  <ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="none" stroke="${el.color}" stroke-width="${el.width}" />\n`;
             }
         } else if (el.type === 'text') {
-            const fs = el.fontSize || 24;
+            const fs = el.fontSize || getFontSizeForWidth(el.width || 4);
             const lines = el.text.split('\n');
             const lh = fs * 1.3;
             lines.forEach((line, idx) => {
