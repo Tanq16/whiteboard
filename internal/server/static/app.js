@@ -8,6 +8,7 @@ const zoomIndicator = document.getElementById('zoom-indicator');
 const penModeBtn = document.getElementById('btn-pen-mode');
 const penModeDot = document.getElementById('pen-mode-dot');
 
+const toolbar = document.getElementById('toolbar');
 const shapesBtn = document.getElementById('btn-add-shapes');
 const shapesDropdown = document.getElementById('shapes-dropdown');
 const colorPickerBtn = document.getElementById('btn-color-picker');
@@ -46,7 +47,8 @@ let activePointers = new Map();
 let prevTouchCenter = null;
 let prevTouchDist = null;
 
-let laserPoints = [];
+let laserTrails = [];
+let currentLaserTrail = null;
 let isDrawingLaser = false;
 let laserAnimFrame = null;
 
@@ -86,46 +88,61 @@ function closeAllDropdowns() {
     exportMenu.classList.add('hidden');
 }
 
+function openDropdown(menu, triggerBtn) {
+    const isHidden = menu.classList.contains('hidden');
+    closeAllDropdowns();
+    if (isHidden) {
+        menu.classList.remove('hidden');
+        const rect = triggerBtn.getBoundingClientRect();
+        const menuWidth = menu.offsetWidth || 160;
+        let left = rect.left + (rect.width - menuWidth) / 2;
+        if (left + menuWidth > window.innerWidth - 8) {
+            left = window.innerWidth - menuWidth - 8;
+        }
+        if (left < 8) {
+            left = 8;
+        }
+        menu.style.top = `${rect.bottom + 8}px`;
+        menu.style.left = `${left}px`;
+    }
+}
+
+if (toolbar) {
+    toolbar.addEventListener('scroll', closeAllDropdowns);
+}
+window.addEventListener('resize', closeAllDropdowns);
+
 document.addEventListener('click', (e) => {
-    if (!e.target.closest('.relative')) {
+    if (!e.target.closest('#shapes-dropdown') &&
+        !e.target.closest('#color-modal') &&
+        !e.target.closest('#width-menu') &&
+        !e.target.closest('#export-menu') &&
+        !e.target.closest('#btn-add-shapes') &&
+        !e.target.closest('#btn-color-picker') &&
+        !e.target.closest('#btn-width-picker') &&
+        !e.target.closest('#btn-export-menu')) {
         closeAllDropdowns();
     }
 });
 
 shapesBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    const isHidden = shapesDropdown.classList.contains('hidden');
-    closeAllDropdowns();
-    if (isHidden) {
-        shapesDropdown.classList.remove('hidden');
-    }
+    openDropdown(shapesDropdown, shapesBtn);
 });
 
 colorPickerBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    const isHidden = colorModal.classList.contains('hidden');
-    closeAllDropdowns();
-    if (isHidden) {
-        colorModal.classList.remove('hidden');
-    }
+    openDropdown(colorModal, colorPickerBtn);
 });
 
 widthPickerBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    const isHidden = widthMenu.classList.contains('hidden');
-    closeAllDropdowns();
-    if (isHidden) {
-        widthMenu.classList.remove('hidden');
-    }
+    openDropdown(widthMenu, widthPickerBtn);
 });
 
 exportMenuBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    const isHidden = exportMenu.classList.contains('hidden');
-    closeAllDropdowns();
-    if (isHidden) {
-        exportMenu.classList.remove('hidden');
-    }
+    openDropdown(exportMenu, exportMenuBtn);
 });
 
 function setPenMode(active) {
@@ -384,8 +401,15 @@ function renderPenStroke(targetCtx, points, color, width) {
 function renderArrow(targetCtx, el) {
     const dx = el.endX - el.startX;
     const dy = el.endY - el.startY;
+    const dist = Math.hypot(dx, dy);
+    if (dist === 0) return;
+
     const angle = Math.atan2(dy, dx);
-    const headLength = Math.max(12, el.width * 3.5);
+    const headLength = Math.min(dist * 0.8, Math.max(12, el.width * 3.5));
+    const baseDist = headLength * Math.cos(Math.PI / 6);
+
+    const shaftEndX = el.endX - Math.min(dist, baseDist) * Math.cos(angle);
+    const shaftEndY = el.endY - Math.min(dist, baseDist) * Math.sin(angle);
 
     targetCtx.strokeStyle = el.color;
     targetCtx.fillStyle = el.color;
@@ -395,7 +419,7 @@ function renderArrow(targetCtx, el) {
 
     targetCtx.beginPath();
     targetCtx.moveTo(el.startX, el.startY);
-    targetCtx.lineTo(el.endX, el.endY);
+    targetCtx.lineTo(shaftEndX, shaftEndY);
     targetCtx.stroke();
 
     targetCtx.beginPath();
@@ -576,37 +600,57 @@ function renderSelectionOutline(targetCtx, el) {
 }
 
 function renderLaserTrail(targetCtx) {
-    if (laserPoints.length < 2) return;
+    if (laserTrails.length === 0) return;
     const now = performance.now();
-    targetCtx.save();
-    targetCtx.lineCap = 'round';
-    targetCtx.lineJoin = 'round';
+    const duration = 750;
 
-    for (let i = 1; i < laserPoints.length; i++) {
-        const p0 = laserPoints[i - 1];
-        const p1 = laserPoints[i];
-        const age = now - p1.time;
-        if (age >= 800) continue;
-        const alpha = Math.max(0, 1 - age / 800);
-        targetCtx.strokeStyle = `rgba(243, 139, 168, ${alpha.toFixed(3)})`;
-        targetCtx.lineWidth = Math.max(2, 6 * alpha);
-        targetCtx.beginPath();
-        targetCtx.moveTo(p0.x, p0.y);
-        const midX = (p0.x + p1.x) / 2;
-        const midY = (p0.y + p1.y) / 2;
-        targetCtx.quadraticCurveTo(p0.x, p0.y, midX, midY);
-        targetCtx.lineTo(p1.x, p1.y);
-        targetCtx.stroke();
-    }
+    for (const trail of laserTrails) {
+        if (trail.length < 2) continue;
 
-    const tip = laserPoints[laserPoints.length - 1];
-    if (tip && now - tip.time < 800) {
-        targetCtx.fillStyle = '#f38ba8';
-        targetCtx.beginPath();
-        targetCtx.arc(tip.x, tip.y, 4, 0, Math.PI * 2);
-        targetCtx.fill();
+        const pts = [];
+        for (const p of trail) {
+            if (pts.length === 0 || Math.hypot(p.x - pts[pts.length - 1].x, p.y - pts[pts.length - 1].y) >= 2) {
+                pts.push(p);
+            }
+        }
+        if (pts.length < 2) continue;
+
+        const numChunks = Math.min(12, Math.max(1, Math.floor(pts.length / 4)));
+        const chunkSize = Math.ceil((pts.length - 1) / numChunks);
+
+        for (let c = 0; c < numChunks; c++) {
+            const startIdx = c * chunkSize;
+            const endIdx = Math.min(pts.length - 1, (c + 1) * chunkSize);
+            if (startIdx >= endIdx) break;
+
+            const avgTime = (pts[startIdx].time + pts[endIdx].time) / 2;
+            const age = now - avgTime;
+            if (age >= duration) continue;
+
+            const progress = Math.max(0, 1 - age / duration);
+            const alpha = Math.min(1, Math.max(0.04, progress));
+            const width = Math.max(1.5, 5.5 * progress);
+
+            targetCtx.save();
+            targetCtx.strokeStyle = `rgba(243, 139, 168, ${alpha.toFixed(3)})`;
+            targetCtx.lineWidth = width;
+            targetCtx.lineCap = 'round';
+            targetCtx.lineJoin = 'round';
+
+            targetCtx.beginPath();
+            targetCtx.moveTo(pts[startIdx].x, pts[startIdx].y);
+            for (let j = startIdx; j < endIdx; j++) {
+                const p0 = pts[j];
+                const p1 = pts[j + 1];
+                const midX = (p0.x + p1.x) / 2;
+                const midY = (p0.y + p1.y) / 2;
+                targetCtx.quadraticCurveTo(p0.x, p0.y, midX, midY);
+            }
+            targetCtx.lineTo(pts[endIdx].x, pts[endIdx].y);
+            targetCtx.stroke();
+            targetCtx.restore();
+        }
     }
-    targetCtx.restore();
 }
 
 function render() {
@@ -637,9 +681,21 @@ function render() {
 
 function tickLaser() {
     const now = performance.now();
-    laserPoints = laserPoints.filter(p => now - p.time < 800);
+    const duration = 750;
+
+    for (let i = laserTrails.length - 1; i >= 0; i--) {
+        const trail = laserTrails[i];
+        while (trail.length > 0 && now - trail[0].time >= duration) {
+            trail.shift();
+        }
+        if (trail.length === 0 && trail !== currentLaserTrail) {
+            laserTrails.splice(i, 1);
+        }
+    }
+
     render();
-    if (laserPoints.length > 0 || isDrawingLaser) {
+
+    if (laserTrails.length > 0 || isDrawingLaser) {
         laserAnimFrame = requestAnimationFrame(tickLaser);
     } else {
         laserAnimFrame = null;
@@ -774,10 +830,12 @@ canvas.addEventListener('pointerdown', (e) => {
 
     if (activeTool === 'laser') {
         isDrawingLaser = true;
+        currentLaserTrail = [];
+        laserTrails.push(currentLaserTrail);
         const events = extractPointerEvents(e);
         for (const ev of events) {
             const w = screenToWorld(ev.clientX, ev.clientY);
-            laserPoints.push({ x: w.x, y: w.y, time: performance.now() });
+            currentLaserTrail.push({ x: w.x, y: w.y, time: performance.now() });
         }
         if (!laserAnimFrame) {
             laserAnimFrame = requestAnimationFrame(tickLaser);
@@ -884,11 +942,11 @@ canvas.addEventListener('pointermove', (e) => {
         return;
     }
 
-    if (isDrawingLaser) {
+    if (isDrawingLaser && currentLaserTrail) {
         const events = extractPointerEvents(e);
         for (const ev of events) {
             const world = screenToWorld(ev.clientX, ev.clientY);
-            laserPoints.push({ x: world.x, y: world.y, time: performance.now() });
+            currentLaserTrail.push({ x: world.x, y: world.y, time: performance.now() });
         }
         return;
     }
@@ -934,6 +992,7 @@ function endPointer(e) {
 
     if (isDrawingLaser) {
         isDrawingLaser = false;
+        currentLaserTrail = null;
     }
 
     if (currentElement) {
@@ -1124,15 +1183,21 @@ document.getElementById('btn-export-svg').addEventListener('click', () => {
         } else if (el.type === 'arrow') {
             const dx = el.endX - el.startX;
             const dy = el.endY - el.startY;
-            const angle = Math.atan2(dy, dx);
-            const headLength = Math.max(12, el.width * 3.5);
-            const p1x = el.endX - headLength * Math.cos(angle - Math.PI / 6);
-            const p1y = el.endY - headLength * Math.sin(angle - Math.PI / 6);
-            const p2x = el.endX - headLength * Math.cos(angle + Math.PI / 6);
-            const p2y = el.endY - headLength * Math.sin(angle + Math.PI / 6);
+            const dist = Math.hypot(dx, dy);
+            if (dist > 0) {
+                const angle = Math.atan2(dy, dx);
+                const headLength = Math.min(dist * 0.8, Math.max(12, el.width * 3.5));
+                const baseDist = headLength * Math.cos(Math.PI / 6);
+                const shaftEndX = (el.endX - Math.min(dist, baseDist) * Math.cos(angle)).toFixed(1);
+                const shaftEndY = (el.endY - Math.min(dist, baseDist) * Math.sin(angle)).toFixed(1);
+                const p1x = (el.endX - headLength * Math.cos(angle - Math.PI / 6)).toFixed(1);
+                const p1y = (el.endY - headLength * Math.sin(angle - Math.PI / 6)).toFixed(1);
+                const p2x = (el.endX - headLength * Math.cos(angle + Math.PI / 6)).toFixed(1);
+                const p2y = (el.endY - headLength * Math.sin(angle + Math.PI / 6)).toFixed(1);
 
-            svg += `  <line x1="${el.startX}" y1="${el.startY}" x2="${el.endX}" y2="${el.endY}" stroke="${el.color}" stroke-width="${el.width}" stroke-linecap="round" />\n`;
-            svg += `  <polygon points="${el.endX},${el.endY} ${p1x.toFixed(1)},${p1y.toFixed(1)} ${p2x.toFixed(1)},${p2y.toFixed(1)}" fill="${el.color}" />\n`;
+                svg += `  <line x1="${el.startX}" y1="${el.startY}" x2="${shaftEndX}" y2="${shaftEndY}" stroke="${el.color}" stroke-width="${el.width}" stroke-linecap="round" />\n`;
+                svg += `  <polygon points="${el.endX},${el.endY} ${p1x},${p1y} ${p2x},${p2y}" fill="${el.color}" />\n`;
+            }
         } else if (el.type === 'rect') {
             const rx = Math.min(el.startX, el.endX);
             const ry = Math.min(el.startY, el.endY);

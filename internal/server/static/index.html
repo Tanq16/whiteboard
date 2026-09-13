@@ -58,165 +58,167 @@
     </style>
 </head>
 <body class="bg-crust text-subtext0 w-screen h-screen overflow-hidden select-none font-sans">
-    <div class="fixed top-2.5 left-1/2 -translate-x-1/2 z-50 bg-mantle/95 backdrop-blur border border-surface0 rounded-2xl shadow-xl px-2.5 py-1.5 flex items-center gap-1.5 max-w-[calc(100vw-1rem)] overflow-visible select-none">
-        <div class="flex items-center gap-1 shrink-0">
-            <button data-tool="select" class="tool-btn p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition" title="Select (V)">
-                <i data-lucide="mouse-pointer" class="w-4 h-4"></i>
-            </button>
-            <button data-tool="hand" class="tool-btn p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition" title="Hand / Pan (H)">
-                <i data-lucide="hand" class="w-4 h-4"></i>
-            </button>
-            <button data-tool="pen" class="tool-btn p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition" title="Pen (P)">
-                <i data-lucide="pen" class="w-4 h-4"></i>
-            </button>
-            <button data-tool="laser" class="tool-btn p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition" title="Laser Pointer (K)">
-                <i data-lucide="sparkles" class="w-4 h-4"></i>
-            </button>
-            <div class="relative">
+    <div class="fixed top-2.5 left-0 right-0 z-50 flex justify-center pointer-events-none px-2">
+        <div id="toolbar" class="pointer-events-auto bg-mantle/95 backdrop-blur border border-surface0 rounded-2xl shadow-xl px-2.5 py-1.5 flex items-center gap-1.5 max-w-full overflow-x-auto select-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+            <div class="flex items-center gap-1 shrink-0">
+                <button data-tool="select" class="tool-btn p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition" title="Select (V)">
+                    <i data-lucide="mouse-pointer" class="w-4 h-4"></i>
+                </button>
+                <button data-tool="hand" class="tool-btn p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition" title="Hand / Pan (H)">
+                    <i data-lucide="hand" class="w-4 h-4"></i>
+                </button>
+                <button data-tool="pen" class="tool-btn p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition" title="Pen (P)">
+                    <i data-lucide="pen" class="w-4 h-4"></i>
+                </button>
+                <button data-tool="laser" class="tool-btn p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition" title="Laser Pointer (K)">
+                    <i data-lucide="sparkles" class="w-4 h-4"></i>
+                </button>
                 <button id="btn-add-shapes" class="tool-btn p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition flex items-center gap-0.5" title="Add Shape or Text (+)">
                     <i data-lucide="plus" class="w-4 h-4"></i>
                     <i data-lucide="chevron-down" class="w-2.5 h-2.5 opacity-60"></i>
                 </button>
-                <div id="shapes-dropdown" class="hidden absolute top-full left-0 mt-2 bg-mantle border border-surface0 rounded-xl shadow-2xl p-1.5 flex flex-col gap-1 min-w-36 z-50">
-                    <button data-tool="rect" class="tool-btn flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs text-subtext0 hover:text-text hover:bg-surface0 transition text-left" title="Rectangle (R)">
-                        <i data-lucide="square" class="w-4 h-4"></i>
-                        <span>Rectangle (R)</span>
-                    </button>
-                    <button data-tool="circle" class="tool-btn flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs text-subtext0 hover:text-text hover:bg-surface0 transition text-left" title="Circle (C)">
-                        <i data-lucide="circle" class="w-4 h-4"></i>
-                        <span>Circle (C)</span>
-                    </button>
-                    <button data-tool="line" class="tool-btn flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs text-subtext0 hover:text-text hover:bg-surface0 transition text-left" title="Line (L)">
-                        <i data-lucide="minus" class="w-4 h-4"></i>
-                        <span>Line (L)</span>
-                    </button>
-                    <button data-tool="arrow" class="tool-btn flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs text-subtext0 hover:text-text hover:bg-surface0 transition text-left" title="Arrow (A)">
-                        <i data-lucide="arrow-up-right" class="w-4 h-4"></i>
-                        <span>Arrow (A)</span>
-                    </button>
-                    <button data-tool="text" class="tool-btn flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs text-subtext0 hover:text-text hover:bg-surface0 transition text-left" title="Text (T)">
-                        <i data-lucide="type" class="w-4 h-4"></i>
-                        <span>Text (T)</span>
-                    </button>
-                </div>
             </div>
-        </div>
 
-        <div class="h-4 w-px bg-surface0 shrink-0"></div>
+            <div class="h-4 w-px bg-surface0 shrink-0"></div>
 
-        <button id="btn-pen-mode" class="p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition flex items-center gap-1.5 shrink-0" title="Stylus Mode">
-            <i data-lucide="pen-tool" class="w-4 h-4"></i>
-            <span id="pen-mode-dot" class="w-2 h-2 rounded-full bg-surface2"></span>
-        </button>
+            <button id="btn-pen-mode" class="p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition flex items-center gap-1.5 shrink-0" title="Stylus Mode">
+                <i data-lucide="pen-tool" class="w-4 h-4"></i>
+                <span id="pen-mode-dot" class="w-2 h-2 rounded-full bg-surface2"></span>
+            </button>
 
-        <div class="h-4 w-px bg-surface0 shrink-0"></div>
+            <div class="h-4 w-px bg-surface0 shrink-0"></div>
 
-        <div class="relative shrink-0">
-            <button id="btn-color-picker" class="p-1 rounded-lg text-subtext0 hover:bg-surface0 transition flex items-center gap-1" title="Color">
+            <button id="btn-color-picker" class="p-1 rounded-lg text-subtext0 hover:bg-surface0 transition flex items-center gap-1 shrink-0" title="Color">
                 <span id="active-color-swatch" class="w-5 h-5 rounded-full border-2 border-surface1 inline-block transition" style="background-color: #cdd6f4;"></span>
                 <i data-lucide="chevron-down" class="w-2.5 h-2.5 opacity-60"></i>
             </button>
-            <div id="color-modal" class="hidden absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-mantle border border-surface0 rounded-xl shadow-2xl p-2.5 z-50">
-                <div class="grid grid-cols-5 gap-2 w-36">
-                    <button data-color="#cdd6f4" class="color-btn w-6 h-6 rounded-full border-2 border-transparent hover:scale-110 transition" style="background-color: #cdd6f4;" title="Text"></button>
-                    <button data-color="#f38ba8" class="color-btn w-6 h-6 rounded-full border-2 border-transparent hover:scale-110 transition" style="background-color: #f38ba8;" title="Red"></button>
-                    <button data-color="#a6e3a1" class="color-btn w-6 h-6 rounded-full border-2 border-transparent hover:scale-110 transition" style="background-color: #a6e3a1;" title="Green"></button>
-                    <button data-color="#89b4fa" class="color-btn w-6 h-6 rounded-full border-2 border-transparent hover:scale-110 transition" style="background-color: #89b4fa;" title="Blue"></button>
-                    <button data-color="#f9e2af" class="color-btn w-6 h-6 rounded-full border-2 border-transparent hover:scale-110 transition" style="background-color: #f9e2af;" title="Yellow"></button>
-                    <button data-color="#cba6f7" class="color-btn w-6 h-6 rounded-full border-2 border-transparent hover:scale-110 transition" style="background-color: #cba6f7;" title="Mauve"></button>
-                    <button data-color="#fab387" class="color-btn w-6 h-6 rounded-full border-2 border-transparent hover:scale-110 transition" style="background-color: #fab387;" title="Peach"></button>
-                    <button data-color="#94e2d5" class="color-btn w-6 h-6 rounded-full border-2 border-transparent hover:scale-110 transition" style="background-color: #94e2d5;" title="Teal"></button>
-                    <button data-color="#f5c2e7" class="color-btn w-6 h-6 rounded-full border-2 border-transparent hover:scale-110 transition" style="background-color: #f5c2e7;" title="Pink"></button>
-                    <button data-color="#6c7086" class="color-btn w-6 h-6 rounded-full border-2 border-transparent hover:scale-110 transition" style="background-color: #6c7086;" title="Gray"></button>
-                </div>
-            </div>
-        </div>
 
-        <div class="relative shrink-0">
-            <button id="btn-width-picker" class="px-2 py-1 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition flex items-center gap-1 text-xs font-mono" title="Stroke Width">
+            <button id="btn-width-picker" class="px-2 py-1 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition flex items-center gap-1 text-xs font-mono shrink-0" title="Stroke Width">
                 <span id="active-width-label">4px</span>
                 <i data-lucide="chevron-down" class="w-2.5 h-2.5 opacity-60"></i>
             </button>
-            <div id="width-menu" class="hidden absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-mantle border border-surface0 rounded-xl shadow-2xl p-1.5 flex flex-col gap-1 min-w-32 z-50">
-                <button data-width="2" class="width-btn flex items-center justify-between px-2.5 py-1 rounded-lg text-xs font-mono text-subtext0 hover:text-text hover:bg-surface0 transition">
-                    <span>2px</span>
-                    <span class="w-10 h-0.5 rounded bg-subtext0"></span>
+
+            <div class="h-4 w-px bg-surface0 shrink-0"></div>
+
+            <div class="flex items-center gap-0.5 shrink-0">
+                <button id="btn-undo" class="p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition" title="Undo (Ctrl+Z)">
+                    <i data-lucide="undo-2" class="w-4 h-4"></i>
                 </button>
-                <button data-width="4" class="width-btn flex items-center justify-between px-2.5 py-1 rounded-lg text-xs font-mono text-subtext0 hover:text-text hover:bg-surface0 transition">
-                    <span>4px</span>
-                    <span class="w-10 h-1 rounded bg-subtext0"></span>
-                </button>
-                <button data-width="6" class="width-btn flex items-center justify-between px-2.5 py-1 rounded-lg text-xs font-mono text-subtext0 hover:text-text hover:bg-surface0 transition">
-                    <span>6px</span>
-                    <span class="w-10 h-1.5 rounded bg-subtext0"></span>
-                </button>
-                <button data-width="8" class="width-btn flex items-center justify-between px-2.5 py-1 rounded-lg text-xs font-mono text-subtext0 hover:text-text hover:bg-surface0 transition">
-                    <span>8px</span>
-                    <span class="w-10 h-2 rounded bg-subtext0"></span>
-                </button>
-                <button data-width="12" class="width-btn flex items-center justify-between px-2.5 py-1 rounded-lg text-xs font-mono text-subtext0 hover:text-text hover:bg-surface0 transition">
-                    <span>12px</span>
-                    <span class="w-10 h-2.5 rounded bg-subtext0"></span>
-                </button>
-                <button data-width="16" class="width-btn flex items-center justify-between px-2.5 py-1 rounded-lg text-xs font-mono text-subtext0 hover:text-text hover:bg-surface0 transition">
-                    <span>16px</span>
-                    <span class="w-10 h-3 rounded bg-subtext0"></span>
-                </button>
-                <button data-width="24" class="width-btn flex items-center justify-between px-2.5 py-1 rounded-lg text-xs font-mono text-subtext0 hover:text-text hover:bg-surface0 transition">
-                    <span>24px</span>
-                    <span class="w-10 h-4 rounded bg-subtext0"></span>
+                <button id="btn-redo" class="p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition" title="Redo (Ctrl+Y)">
+                    <i data-lucide="redo-2" class="w-4 h-4"></i>
                 </button>
             </div>
-        </div>
 
-        <div class="h-4 w-px bg-surface0 shrink-0"></div>
+            <div class="h-4 w-px bg-surface0 shrink-0"></div>
 
-        <div class="flex items-center gap-0.5 shrink-0">
-            <button id="btn-undo" class="p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition" title="Undo (Ctrl+Z)">
-                <i data-lucide="undo-2" class="w-4 h-4"></i>
-            </button>
-            <button id="btn-redo" class="p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition" title="Redo (Ctrl+Y)">
-                <i data-lucide="redo-2" class="w-4 h-4"></i>
-            </button>
-        </div>
+            <div class="flex items-center gap-0.5 shrink-0">
+                <button id="btn-zoom-out" class="p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition" title="Zoom Out (-)">
+                    <i data-lucide="zoom-out" class="w-4 h-4"></i>
+                </button>
+                <button id="btn-zoom-reset" class="px-1 py-1 rounded text-xs font-mono w-11 text-center text-subtext0 hover:text-text hover:bg-surface0 transition" title="Reset Zoom (0)">
+                    <span id="zoom-indicator">100%</span>
+                </button>
+                <button id="btn-zoom-in" class="p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition" title="Zoom In (+)">
+                    <i data-lucide="zoom-in" class="w-4 h-4"></i>
+                </button>
+            </div>
 
-        <div class="h-4 w-px bg-surface0 shrink-0"></div>
+            <div class="h-4 w-px bg-surface0 shrink-0"></div>
 
-        <div class="flex items-center gap-0.5 shrink-0">
-            <button id="btn-zoom-out" class="p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition" title="Zoom Out (-)">
-                <i data-lucide="zoom-out" class="w-4 h-4"></i>
-            </button>
-            <button id="btn-zoom-reset" class="px-1 py-1 rounded text-xs font-mono w-11 text-center text-subtext0 hover:text-text hover:bg-surface0 transition" title="Reset Zoom (0)">
-                <span id="zoom-indicator">100%</span>
-            </button>
-            <button id="btn-zoom-in" class="p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition" title="Zoom In (+)">
-                <i data-lucide="zoom-in" class="w-4 h-4"></i>
-            </button>
-        </div>
-
-        <div class="h-4 w-px bg-surface0 shrink-0"></div>
-
-        <div class="flex items-center gap-0.5 shrink-0">
-            <button id="btn-clear" class="p-1.5 rounded-lg text-subtext0 hover:text-red hover:bg-surface0 transition" title="Clear Canvas">
-                <i data-lucide="trash-2" class="w-4 h-4"></i>
-            </button>
-            <div class="relative">
+            <div class="flex items-center gap-0.5 shrink-0">
+                <button id="btn-clear" class="p-1.5 rounded-lg text-subtext0 hover:text-red hover:bg-surface0 transition" title="Clear Canvas">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                </button>
                 <button id="btn-export-menu" class="p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition flex items-center gap-0.5" title="Export">
                     <i data-lucide="download" class="w-4 h-4"></i>
                     <i data-lucide="chevron-down" class="w-2.5 h-2.5 opacity-60"></i>
                 </button>
-                <div id="export-menu" class="hidden absolute top-full right-0 mt-2 bg-mantle border border-surface0 rounded-xl shadow-2xl p-1.5 flex flex-col gap-1 min-w-40 z-50">
-                    <button id="btn-export-png" class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs text-subtext0 hover:text-text hover:bg-surface0 transition text-left">
-                        <i data-lucide="image" class="w-4 h-4"></i>
-                        <span>Export as PNG</span>
-                    </button>
-                    <button id="btn-export-svg" class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs text-subtext0 hover:text-text hover:bg-surface0 transition text-left">
-                        <i data-lucide="file-code" class="w-4 h-4"></i>
-                        <span>Export as SVG</span>
-                    </button>
-                </div>
             </div>
         </div>
+    </div>
+
+    <div id="shapes-dropdown" class="hidden fixed bg-mantle border border-surface0 rounded-xl shadow-2xl p-1.5 flex flex-col gap-1 min-w-36 z-50 select-none">
+        <button data-tool="rect" class="tool-btn flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs text-subtext0 hover:text-text hover:bg-surface0 transition text-left" title="Rectangle (R)">
+            <i data-lucide="square" class="w-4 h-4"></i>
+            <span>Rectangle (R)</span>
+        </button>
+        <button data-tool="circle" class="tool-btn flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs text-subtext0 hover:text-text hover:bg-surface0 transition text-left" title="Circle (C)">
+            <i data-lucide="circle" class="w-4 h-4"></i>
+            <span>Circle (C)</span>
+        </button>
+        <button data-tool="line" class="tool-btn flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs text-subtext0 hover:text-text hover:bg-surface0 transition text-left" title="Line (L)">
+            <i data-lucide="minus" class="w-4 h-4"></i>
+            <span>Line (L)</span>
+        </button>
+        <button data-tool="arrow" class="tool-btn flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs text-subtext0 hover:text-text hover:bg-surface0 transition text-left" title="Arrow (A)">
+            <i data-lucide="arrow-up-right" class="w-4 h-4"></i>
+            <span>Arrow (A)</span>
+        </button>
+        <button data-tool="text" class="tool-btn flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs text-subtext0 hover:text-text hover:bg-surface0 transition text-left" title="Text (T)">
+            <i data-lucide="type" class="w-4 h-4"></i>
+            <span>Text (T)</span>
+        </button>
+    </div>
+
+    <div id="color-modal" class="hidden fixed bg-mantle border border-surface0 rounded-xl shadow-2xl p-2.5 z-50 select-none">
+        <div class="grid grid-cols-5 gap-2 w-36">
+            <button data-color="#cdd6f4" class="color-btn w-6 h-6 rounded-full border-2 border-transparent hover:scale-110 transition" style="background-color: #cdd6f4;" title="Text"></button>
+            <button data-color="#f38ba8" class="color-btn w-6 h-6 rounded-full border-2 border-transparent hover:scale-110 transition" style="background-color: #f38ba8;" title="Red"></button>
+            <button data-color="#a6e3a1" class="color-btn w-6 h-6 rounded-full border-2 border-transparent hover:scale-110 transition" style="background-color: #a6e3a1;" title="Green"></button>
+            <button data-color="#89b4fa" class="color-btn w-6 h-6 rounded-full border-2 border-transparent hover:scale-110 transition" style="background-color: #89b4fa;" title="Blue"></button>
+            <button data-color="#f9e2af" class="color-btn w-6 h-6 rounded-full border-2 border-transparent hover:scale-110 transition" style="background-color: #f9e2af;" title="Yellow"></button>
+            <button data-color="#cba6f7" class="color-btn w-6 h-6 rounded-full border-2 border-transparent hover:scale-110 transition" style="background-color: #cba6f7;" title="Mauve"></button>
+            <button data-color="#fab387" class="color-btn w-6 h-6 rounded-full border-2 border-transparent hover:scale-110 transition" style="background-color: #fab387;" title="Peach"></button>
+            <button data-color="#94e2d5" class="color-btn w-6 h-6 rounded-full border-2 border-transparent hover:scale-110 transition" style="background-color: #94e2d5;" title="Teal"></button>
+            <button data-color="#f5c2e7" class="color-btn w-6 h-6 rounded-full border-2 border-transparent hover:scale-110 transition" style="background-color: #f5c2e7;" title="Pink"></button>
+            <button data-color="#6c7086" class="color-btn w-6 h-6 rounded-full border-2 border-transparent hover:scale-110 transition" style="background-color: #6c7086;" title="Gray"></button>
+        </div>
+    </div>
+
+    <div id="width-menu" class="hidden fixed bg-mantle border border-surface0 rounded-xl shadow-2xl p-1.5 flex flex-col gap-1 min-w-32 z-50 select-none">
+        <button data-width="1" class="width-btn flex items-center justify-between px-2.5 py-1 rounded-lg text-xs font-mono text-subtext0 hover:text-text hover:bg-surface0 transition">
+            <span>1px</span>
+            <span class="w-10 h-[1px] rounded bg-subtext0"></span>
+        </button>
+        <button data-width="2" class="width-btn flex items-center justify-between px-2.5 py-1 rounded-lg text-xs font-mono text-subtext0 hover:text-text hover:bg-surface0 transition">
+            <span>2px</span>
+            <span class="w-10 h-0.5 rounded bg-subtext0"></span>
+        </button>
+        <button data-width="4" class="width-btn flex items-center justify-between px-2.5 py-1 rounded-lg text-xs font-mono text-subtext0 hover:text-text hover:bg-surface0 transition">
+            <span>4px</span>
+            <span class="w-10 h-1 rounded bg-subtext0"></span>
+        </button>
+        <button data-width="6" class="width-btn flex items-center justify-between px-2.5 py-1 rounded-lg text-xs font-mono text-subtext0 hover:text-text hover:bg-surface0 transition">
+            <span>6px</span>
+            <span class="w-10 h-1.5 rounded bg-subtext0"></span>
+        </button>
+        <button data-width="8" class="width-btn flex items-center justify-between px-2.5 py-1 rounded-lg text-xs font-mono text-subtext0 hover:text-text hover:bg-surface0 transition">
+            <span>8px</span>
+            <span class="w-10 h-2 rounded bg-subtext0"></span>
+        </button>
+        <button data-width="12" class="width-btn flex items-center justify-between px-2.5 py-1 rounded-lg text-xs font-mono text-subtext0 hover:text-text hover:bg-surface0 transition">
+            <span>12px</span>
+            <span class="w-10 h-2.5 rounded bg-subtext0"></span>
+        </button>
+        <button data-width="16" class="width-btn flex items-center justify-between px-2.5 py-1 rounded-lg text-xs font-mono text-subtext0 hover:text-text hover:bg-surface0 transition">
+            <span>16px</span>
+            <span class="w-10 h-3 rounded bg-subtext0"></span>
+        </button>
+        <button data-width="24" class="width-btn flex items-center justify-between px-2.5 py-1 rounded-lg text-xs font-mono text-subtext0 hover:text-text hover:bg-surface0 transition">
+            <span>24px</span>
+            <span class="w-10 h-4 rounded bg-subtext0"></span>
+        </button>
+    </div>
+
+    <div id="export-menu" class="hidden fixed bg-mantle border border-surface0 rounded-xl shadow-2xl p-1.5 flex flex-col gap-1 min-w-40 z-50 select-none">
+        <button id="btn-export-png" class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs text-subtext0 hover:text-text hover:bg-surface0 transition text-left">
+            <i data-lucide="image" class="w-4 h-4"></i>
+            <span>Export as PNG</span>
+        </button>
+        <button id="btn-export-svg" class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs text-subtext0 hover:text-text hover:bg-surface0 transition text-left">
+            <i data-lucide="file-code" class="w-4 h-4"></i>
+            <span>Export as SVG</span>
+        </button>
     </div>
 
     <canvas id="whiteboard-canvas" class="absolute inset-0 w-full h-full touch-none block"></canvas>
