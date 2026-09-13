@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Whiteboard</title>
+
+    <link rel="icon" type="image/x-icon" href="/static/icons/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/icons/favicon.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/static/icons/apple-touch-icon.png">
+
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#11111b">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Whiteboard">
+
+    <link rel="stylesheet" href="/static/css/inter.css">
+    <link rel="stylesheet" href="/static/css/google-sans.css">
+    <link rel="stylesheet" href="/static/css/jetbrains-mono.css">
+    <link rel="stylesheet" href="/static/css/virgil.css">
+
+    <script src="/static/js/lucide.min.js"></script>
+    <script src="/static/js/tailwind.js"></script>
+    <style>
+      :root {
+        --ctp-rosewater: #f5e0dc; --ctp-flamingo: #f2cdcd; --ctp-pink: #f5c2e7;
+        --ctp-mauve: #cba6f7;     --ctp-red: #f38ba8;      --ctp-maroon: #eba0ac;
+        --ctp-peach: #fab387;     --ctp-yellow: #f9e2af;   --ctp-green: #a6e3a1;
+        --ctp-teal: #94e2d5;      --ctp-sky: #89dceb;      --ctp-sapphire: #74c7ec;
+        --ctp-blue: #89b4fa;      --ctp-lavender: #b4befe; --ctp-text: #cdd6f4;
+        --ctp-subtext1: #bac2de;  --ctp-subtext0: #a6adc8; --ctp-overlay2: #9399b2;
+        --ctp-overlay1: #7f849c;  --ctp-overlay0: #6c7086; --ctp-surface2: #585b70;
+        --ctp-surface1: #45475a;  --ctp-surface0: #313244; --ctp-base: #1e1e2e;
+        --ctp-mantle: #181825;    --ctp-crust: #11111b;
+      }
+    </style>
+    <style type="text/tailwindcss">
+      @theme {
+        --color-rosewater: var(--ctp-rosewater); --color-flamingo: var(--ctp-flamingo);
+        --color-pink: var(--ctp-pink);           --color-mauve: var(--ctp-mauve);
+        --color-red: var(--ctp-red);             --color-maroon: var(--ctp-maroon);
+        --color-peach: var(--ctp-peach);         --color-yellow: var(--ctp-yellow);
+        --color-green: var(--ctp-green);         --color-teal: var(--ctp-teal);
+        --color-sky: var(--ctp-sky);             --color-sapphire: var(--ctp-sapphire);
+        --color-blue: var(--ctp-blue);           --color-lavender: var(--ctp-lavender);
+        --color-text: var(--ctp-text);           --color-subtext1: var(--ctp-subtext1);
+        --color-subtext0: var(--ctp-subtext0);   --color-overlay2: var(--ctp-overlay2);
+        --color-overlay1: var(--ctp-overlay1);   --color-overlay0: var(--ctp-overlay0);
+        --color-surface2: var(--ctp-surface2);   --color-surface1: var(--ctp-surface1);
+        --color-surface0: var(--ctp-surface0);   --color-base: var(--ctp-base);
+        --color-mantle: var(--ctp-mantle);       --color-crust: var(--ctp-crust);
+
+        --font-sans: 'Inter', sans-serif;
+        --font-display: 'Google Sans', sans-serif;
+        --font-mono: 'JetBrains Mono', monospace;
+      }
+    </style>
+</head>
+<body class="bg-crust text-subtext0 w-screen h-screen overflow-hidden select-none font-sans">
+    <div class="fixed top-0 left-0 right-0 z-50 bg-mantle/95 backdrop-blur border-b border-surface0 px-3 py-1.5 flex items-center justify-between gap-2 overflow-x-auto">
+        <div class="flex items-center gap-2 shrink-0">
+            <img src="/static/icons/logo.png" alt="Logo" class="w-6 h-6 rounded-md">
+            <span class="font-display font-semibold text-text text-sm tracking-wide hidden sm:inline">Whiteboard</span>
+        </div>
+
+        <div class="h-4 w-px bg-surface0 shrink-0"></div>
+
+        <div class="flex items-center gap-1 shrink-0">
+            <button data-tool="hand" class="tool-btn p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition" title="Hand / Pan (H)">
+                <i data-lucide="hand" class="w-4 h-4"></i>
+            </button>
+            <button data-tool="pen" class="tool-btn p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition" title="Pen (P)">
+                <i data-lucide="pen" class="w-4 h-4"></i>
+            </button>
+            <button data-tool="line" class="tool-btn p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition" title="Line (L)">
+                <i data-lucide="minus" class="w-4 h-4"></i>
+            </button>
+            <button data-tool="arrow" class="tool-btn p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition" title="Arrow (A)">
+                <i data-lucide="arrow-up-right" class="w-4 h-4"></i>
+            </button>
+            <button data-tool="rect" class="tool-btn p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition" title="Rectangle (R)">
+                <i data-lucide="square" class="w-4 h-4"></i>
+            </button>
+            <button data-tool="circle" class="tool-btn p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition" title="Circle (C)">
+                <i data-lucide="circle" class="w-4 h-4"></i>
+            </button>
+            <button data-tool="text" class="tool-btn p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition" title="Text (T)">
+                <i data-lucide="type" class="w-4 h-4"></i>
+            </button>
+            <button data-tool="laser" class="tool-btn p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition" title="Laser Pointer (K)">
+                <i data-lucide="sparkles" class="w-4 h-4"></i>
+            </button>
+        </div>
+
+        <div class="h-4 w-px bg-surface0 shrink-0"></div>
+
+        <div class="flex items-center gap-1 shrink-0">
+            <button id="btn-pen-mode" class="p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition flex items-center gap-1.5" title="Stylus / Pen Mode (P)">
+                <i data-lucide="pen-tool" class="w-4 h-4"></i>
+                <span class="text-xs font-medium hidden md:inline">Stylus</span>
+                <span id="pen-mode-dot" class="w-2 h-2 rounded-full bg-surface2"></span>
+            </button>
+        </div>
+
+        <div class="h-4 w-px bg-surface0 shrink-0"></div>
+
+        <div class="flex items-center gap-1.5 shrink-0" id="color-palette">
+            <button data-color="#cdd6f4" class="color-btn w-5 h-5 rounded-full border-2 border-transparent transition" style="background-color: #cdd6f4;" title="Text (#cdd6f4)"></button>
+            <button data-color="#f38ba8" class="color-btn w-5 h-5 rounded-full border-2 border-transparent transition" style="background-color: #f38ba8;" title="Red (#f38ba8)"></button>
+            <button data-color="#a6e3a1" class="color-btn w-5 h-5 rounded-full border-2 border-transparent transition" style="background-color: #a6e3a1;" title="Green (#a6e3a1)"></button>
+            <button data-color="#89b4fa" class="color-btn w-5 h-5 rounded-full border-2 border-transparent transition" style="background-color: #89b4fa;" title="Blue (#89b4fa)"></button>
+            <button data-color="#f9e2af" class="color-btn w-5 h-5 rounded-full border-2 border-transparent transition" style="background-color: #f9e2af;" title="Yellow (#f9e2af)"></button>
+            <button data-color="#cba6f7" class="color-btn w-5 h-5 rounded-full border-2 border-transparent transition" style="background-color: #cba6f7;" title="Mauve (#cba6f7)"></button>
+            <button data-color="#fab387" class="color-btn w-5 h-5 rounded-full border-2 border-transparent transition" style="background-color: #fab387;" title="Peach (#fab387)"></button>
+        </div>
+
+        <div class="h-4 w-px bg-surface0 shrink-0"></div>
+
+        <div class="flex items-center gap-1 shrink-0" id="width-selector">
+            <button data-width="2" class="width-btn px-2 py-1 rounded-md text-xs font-mono text-subtext0 hover:text-text hover:bg-surface0 transition" title="Thin (2px)">2px</button>
+            <button data-width="4" class="width-btn px-2 py-1 rounded-md text-xs font-mono text-subtext0 hover:text-text hover:bg-surface0 transition" title="Medium (4px)">4px</button>
+            <button data-width="8" class="width-btn px-2 py-1 rounded-md text-xs font-mono text-subtext0 hover:text-text hover:bg-surface0 transition" title="Thick (8px)">8px</button>
+        </div>
+
+        <div class="h-4 w-px bg-surface0 shrink-0"></div>
+
+        <div class="flex items-center gap-1 shrink-0">
+            <button id="btn-undo" class="p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition" title="Undo (Ctrl+Z)">
+                <i data-lucide="undo-2" class="w-4 h-4"></i>
+            </button>
+            <button id="btn-redo" class="p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition" title="Redo (Ctrl+Y)">
+                <i data-lucide="redo-2" class="w-4 h-4"></i>
+            </button>
+        </div>
+
+        <div class="h-4 w-px bg-surface0 shrink-0"></div>
+
+        <div class="flex items-center gap-1 shrink-0">
+            <button id="btn-zoom-out" class="p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition" title="Zoom Out (-)">
+                <i data-lucide="zoom-out" class="w-4 h-4"></i>
+            </button>
+            <span id="zoom-indicator" class="text-xs font-mono w-11 text-center text-subtext0 select-none">100%</span>
+            <button id="btn-zoom-in" class="p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition" title="Zoom In (+)">
+                <i data-lucide="zoom-in" class="w-4 h-4"></i>
+            </button>
+            <button id="btn-zoom-reset" class="p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition" title="Reset Zoom (0)">
+                <i data-lucide="maximize-2" class="w-4 h-4"></i>
+            </button>
+        </div>
+
+        <div class="h-4 w-px bg-surface0 shrink-0"></div>
+
+        <div class="flex items-center gap-1 shrink-0">
+            <button id="btn-clear" class="p-1.5 rounded-lg text-subtext0 hover:text-red hover:bg-surface0 transition" title="Clear Canvas">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+            </button>
+            <button id="btn-export-png" class="p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition" title="Export PNG">
+                <i data-lucide="image" class="w-4 h-4"></i>
+            </button>
+            <button id="btn-export-svg" class="p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition" title="Export SVG">
+                <i data-lucide="file-code" class="w-4 h-4"></i>
+            </button>
+        </div>
+    </div>
+
+    <canvas id="whiteboard-canvas" class="absolute inset-0 w-full h-full touch-none block"></canvas>
+
+    <div id="text-input-container" class="absolute hidden z-40 pointer-events-auto">
+        <textarea id="canvas-text-input" rows="1" class="bg-mantle/90 border border-mauve text-text outline-none rounded p-1 leading-tight text-xl shadow-lg" style="font-family: 'Virgil', cursive;"></textarea>
+    </div>
+
+    <script type="module" src="/static/app.js"></script>
+    <script>lucide.createIcons();</script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js');
+        }
+    </script>
+</body>
+</html>
