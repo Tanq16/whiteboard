@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="internal/server/static/icons/logo.png" alt="whiteboard Logo" width="200">
+  <img src=".github/assets/logo.svg" alt="whiteboard Logo" width="300">
   <h1>whiteboard</h1>
 
   <a href="https://github.com/Tanq16/whiteboard/actions/workflows/release.yaml"><img alt="Build Workflow" src="https://github.com/Tanq16/whiteboard/actions/workflows/release.yaml/badge.svg"></a>&nbsp;<a href="https://github.com/Tanq16/whiteboard/releases"><img alt="GitHub Release" src="https://img.shields.io/github/v/release/Tanq16/whiteboard"></a><br><br>
