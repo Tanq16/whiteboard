@@ -666,6 +666,11 @@ function renderLaserTrail(targetCtx) {
     for (const trail of laserTrails) {
         if (trail.length === 0) continue;
 
+        const laserWidth = trail.width || activeWidth;
+        const maxLaserSize = Math.max(1.5, laserWidth * 2);
+        const headRadius = Math.max(1.5, maxLaserSize / 2);
+        const innerRadius = Math.max(0.8, headRadius * 0.45);
+
         if (trail.length === 1) {
             const p = trail[0];
             const age = now - p.time;
@@ -674,9 +679,9 @@ function renderLaserTrail(targetCtx) {
                 targetCtx.save();
                 targetCtx.fillStyle = '#f38ba8';
                 targetCtx.shadowColor = '#f38ba8';
-                targetCtx.shadowBlur = 8 * progress;
+                targetCtx.shadowBlur = Math.max(4, headRadius * 2) * progress;
                 targetCtx.beginPath();
-                targetCtx.arc(p.x, p.y, Math.max(1, 4 * progress), 0, Math.PI * 2);
+                targetCtx.arc(p.x, p.y, Math.max(1, headRadius * progress), 0, Math.PI * 2);
                 targetCtx.fill();
                 targetCtx.restore();
             }
@@ -698,9 +703,9 @@ function renderLaserTrail(targetCtx) {
                     targetCtx.save();
                     targetCtx.fillStyle = '#f38ba8';
                     targetCtx.shadowColor = '#f38ba8';
-                    targetCtx.shadowBlur = 8 * progress;
+                    targetCtx.shadowBlur = Math.max(4, headRadius * 2) * progress;
                     targetCtx.beginPath();
-                    targetCtx.arc(p.x, p.y, Math.max(1, 4 * progress), 0, Math.PI * 2);
+                    targetCtx.arc(p.x, p.y, Math.max(1, headRadius * progress), 0, Math.PI * 2);
                     targetCtx.fill();
                     targetCtx.restore();
                 }
@@ -715,7 +720,7 @@ function renderLaserTrail(targetCtx) {
                 return [p.x, p.y, progress];
             }),
             {
-                size: 8,
+                size: maxLaserSize,
                 thinning: 0.85,
                 smoothing: 0.35,
                 streamline: 0.2,
@@ -732,7 +737,7 @@ function renderLaserTrail(targetCtx) {
             targetCtx.save();
             targetCtx.fillStyle = `rgba(243, 139, 168, ${Math.min(1, avgProgress + 0.1).toFixed(3)})`;
             targetCtx.shadowColor = '#f38ba8';
-            targetCtx.shadowBlur = 6;
+            targetCtx.shadowBlur = Math.max(4, headRadius * 1.5);
             drawStrokeToCanvas(targetCtx, strokePoints);
             targetCtx.restore();
         }
@@ -742,13 +747,13 @@ function renderLaserTrail(targetCtx) {
             targetCtx.save();
             targetCtx.fillStyle = '#f38ba8';
             targetCtx.shadowColor = '#f38ba8';
-            targetCtx.shadowBlur = 10;
+            targetCtx.shadowBlur = Math.max(4, headRadius * 2.5);
             targetCtx.beginPath();
-            targetCtx.arc(head.x, head.y, 4, 0, Math.PI * 2);
+            targetCtx.arc(head.x, head.y, headRadius, 0, Math.PI * 2);
             targetCtx.fill();
             targetCtx.fillStyle = '#ffffff';
             targetCtx.beginPath();
-            targetCtx.arc(head.x, head.y, 1.8, 0, Math.PI * 2);
+            targetCtx.arc(head.x, head.y, innerRadius, 0, Math.PI * 2);
             targetCtx.fill();
             targetCtx.restore();
         }
@@ -989,6 +994,7 @@ canvas.addEventListener('pointerdown', (e) => {
     if (activeTool === 'laser') {
         isDrawingLaser = true;
         currentLaserTrail = [];
+        currentLaserTrail.width = activeWidth;
         laserTrails.push(currentLaserTrail);
         const events = extractPointerEvents(e);
         for (const ev of events) {
