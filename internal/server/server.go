@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"net/http"
 
+	"github.com/Tanq16/whiteboard/internal/board"
 	"github.com/rs/zerolog/log"
 )
 
@@ -13,16 +14,18 @@ import (
 var staticFiles embed.FS
 
 type Server struct {
-	host string
-	port int
-	mux  *http.ServeMux
+	host  string
+	port  int
+	mux   *http.ServeMux
+	board *board.Board
 }
 
 func New(host string, port int) *Server {
 	return &Server{
-		host: host,
-		port: port,
-		mux:  http.NewServeMux(),
+		host:  host,
+		port:  port,
+		mux:   http.NewServeMux(),
+		board: board.New(),
 	}
 }
 
@@ -34,6 +37,8 @@ func (s *Server) Setup() error {
 	s.mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
 	s.mux.HandleFunc("/sw.js", s.handleServiceWorker)
 	s.mux.HandleFunc("/api/health", s.handleHealth)
+	s.mux.HandleFunc("GET /api/events", s.handleEvents)
+	s.mux.HandleFunc("POST /api/ops", s.handleOps)
 	s.mux.HandleFunc("/", s.handleIndex)
 	return nil
 }

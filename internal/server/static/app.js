@@ -19,6 +19,8 @@ const activeWidthBar = document.getElementById('active-width-bar');
 const widthMenu = document.getElementById('width-menu');
 const exportMenuBtn = document.getElementById('btn-export-menu');
 const exportMenu = document.getElementById('export-menu');
+const syncIndicator = document.getElementById('sync-indicator');
+const syncDot = document.getElementById('sync-dot');
 
 let pan = { x: 0, y: 0 };
 let zoom = 1.0;
@@ -29,9 +31,18 @@ let penMode = false;
 let activeColor = '#cdd6f4';
 let activeWidth = 4;
 
-let elements = [];
+const elements = [];
+const elementsById = new Map();
 let undoStack = [];
 let redoStack = [];
+
+const clientId = crypto.randomUUID();
+let zCounter = Date.now();
+let lastSeq = 0;
+let pendingOps = [];
+let flushing = false;
+let streamOpen = false;
+let queueStalled = false;
 
 let selectedElements = new Set();
 let isDraggingSelection = false;
@@ -221,11 +232,11 @@ function setActiveColor(color) {
     activeColor = color;
     activeColorSwatch.style.backgroundColor = color;
     if (selectedElements.size > 0) {
-        pushHistory();
+        const before = Array.from(selectedElements, clone);
         for (const el of selectedElements) {
             el.color = color;
         }
-        render();
+        commit(putOp(Array.from(selectedElements)), putOp(before));
     }
 }
 
@@ -270,14 +281,14 @@ function setActiveWidth(width) {
         }
     });
     if (selectedElements.size > 0) {
-        pushHistory();
+        const before = Array.from(selectedElements, clone);
         for (const el of selectedElements) {
             el.width = activeWidth;
             if (el.type === 'text') {
                 el.fontSize = getFontSizeForWidth(activeWidth);
             }
         }
-        render();
+        commit(putOp(Array.from(selectedElements)), putOp(before));
     }
 }
 
@@ -318,28 +329,177 @@ document.getElementById('btn-zoom-reset').addEventListener('click', () => {
     render();
 });
 
-function pushHistory() {
-    undoStack.push(JSON.parse(JSON.stringify(elements)));
-    if (undoStack.length > 50) {
+function newElementId() {
+    return crypto.randomUUID();
+}
+
+function nextZ() {
+    zCounter += 1;
+    return zCounter;
+}
+
+function clone(value) {
+    return JSON.parse(JSON.stringify(value));
+}
+
+function compareElements(a, b) {
+    if (a.z !== b.z) return a.z - b.z;
+    return a.id < b.id ? -1 : (a.id > b.id ? 1 : 0);
+}
+
+function putOp(els) {
+    return { origin: clientId, kind: 'put', elements: els };
+}
+
+function deleteOp(ids) {
+    return { origin: clientId, kind: 'delete', ids };
+}
+
+function clearOp() {
+    return { origin: clientId, kind: 'clear' };
+}
+
+function applyOp(op) {
+    if (op.kind === 'put') {
+        let added = false;
+        for (const incoming of op.elements) {
+            const existing = elementsById.get(incoming.id);
+            if (existing) {
+                Object.assign(existing, incoming);
+            } else {
+                const el = clone(incoming);
+                elementsById.set(el.id, el);
+                elements.push(el);
+                added = true;
+            }
+        }
+        if (added) elements.sort(compareElements);
+    } else if (op.kind === 'delete') {
+        for (const id of op.ids) {
+            const el = elementsById.get(id);
+            if (!el) continue;
+            elementsById.delete(id);
+            elements.splice(elements.indexOf(el), 1);
+            selectedElements.delete(el);
+        }
+    } else if (op.kind === 'clear') {
+        elements.length = 0;
+        elementsById.clear();
+        selectedElements.clear();
+    }
+}
+
+function emit(op) {
+    applyOp(op);
+    pendingOps.push(JSON.stringify(op));
+    flush();
+    render();
+}
+
+function commit(op, inverse) {
+    undoStack.push({ op: clone(op), inverse: clone(inverse) });
+    if (undoStack.length > 100) {
         undoStack.shift();
     }
-    redoStack = [];
+    redoStack.length = 0;
+    emit(op);
 }
 
 function undo() {
-    if (undoStack.length === 0) return;
-    redoStack.push(JSON.parse(JSON.stringify(elements)));
-    elements = undoStack.pop();
+    const entry = undoStack.pop();
+    if (!entry) return;
+    redoStack.push(entry);
     selectedElements.clear();
-    render();
+    emit(entry.inverse);
 }
 
 function redo() {
-    if (redoStack.length === 0) return;
-    undoStack.push(JSON.parse(JSON.stringify(elements)));
-    elements = redoStack.pop();
+    const entry = redoStack.pop();
+    if (!entry) return;
+    undoStack.push(entry);
     selectedElements.clear();
-    render();
+    emit(entry.op);
+}
+
+async function flush() {
+    if (flushing) return;
+    flushing = true;
+    while (pendingOps.length > 0) {
+        try {
+            const res = await fetch('/api/ops', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: pendingOps[0]
+            });
+            if (res.status >= 400 && res.status < 500) {
+                console.error('whiteboard: server rejected op', res.status, await res.text());
+                pendingOps.shift();
+                continue;
+            }
+            if (!res.ok) throw new Error(`server returned ${res.status}`);
+            pendingOps.shift();
+        } catch {
+            flushing = false;
+            queueStalled = true;
+            updateSyncIndicator();
+            setTimeout(flush, 1000);
+            return;
+        }
+    }
+    flushing = false;
+    queueStalled = false;
+    updateSyncIndicator();
+}
+
+function updateSyncIndicator() {
+    const synced = streamOpen && !queueStalled;
+    syncDot.classList.toggle('bg-green', synced);
+    syncDot.classList.toggle('bg-red', !synced);
+    syncIndicator.title = synced ? 'Synced with the server' : 'Disconnected, changes are queued locally';
+}
+
+function connect() {
+    const stream = new EventSource('/api/events');
+
+    stream.addEventListener('open', () => {
+        streamOpen = true;
+        updateSyncIndicator();
+    });
+
+    stream.addEventListener('error', () => {
+        streamOpen = false;
+        updateSyncIndicator();
+    });
+
+    stream.addEventListener('sync', (e) => {
+        const snapshot = JSON.parse(e.data);
+        lastSeq = snapshot.seq;
+        elements.length = 0;
+        elementsById.clear();
+        selectedElements.clear();
+        for (const el of snapshot.elements) {
+            elementsById.set(el.id, el);
+            elements.push(el);
+        }
+        elements.sort(compareElements);
+        for (const body of pendingOps) {
+            applyOp(JSON.parse(body));
+        }
+        streamOpen = true;
+        updateSyncIndicator();
+        render();
+    });
+
+    stream.addEventListener('op', (e) => {
+        const op = JSON.parse(e.data);
+        if (op.seq <= lastSeq) return;
+        lastSeq = op.seq;
+        streamOpen = true;
+        updateSyncIndicator();
+        if (op.origin === clientId) return;
+        applyOp(op);
+        render();
+    });
 }
 
 document.getElementById('btn-undo').addEventListener('click', undo);
@@ -347,10 +507,7 @@ document.getElementById('btn-redo').addEventListener('click', redo);
 
 document.getElementById('btn-clear').addEventListener('click', () => {
     if (elements.length === 0) return;
-    pushHistory();
-    elements = [];
-    selectedElements.clear();
-    render();
+    commit(clearOp(), putOp(elements));
 });
 
 function smoothPoints(points) {
@@ -844,17 +1001,18 @@ function openTextInput(screenX, screenY, worldX, worldY) {
 function commitText() {
     const text = textInput.value.trim();
     if (text.length > 0 && pendingTextPos) {
-        pushHistory();
-        const fs = getFontSizeForWidth(activeWidth);
-        elements.push({
+        const el = {
+            id: newElementId(),
+            z: nextZ(),
             type: 'text',
             text: textInput.value,
             x: pendingTextPos.x,
             y: pendingTextPos.y,
             color: activeColor,
             width: activeWidth,
-            fontSize: fs
-        });
+            fontSize: getFontSizeForWidth(activeWidth)
+        };
+        commit(putOp([el]), deleteOp([el.id]));
     }
     textInput.value = '';
     pendingTextPos = null;
@@ -1013,6 +1171,8 @@ canvas.addEventListener('pointerdown', (e) => {
 
     if (activeTool === 'pen') {
         currentElement = {
+            id: newElementId(),
+            z: nextZ(),
             type: 'pen',
             color: activeColor,
             width: activeWidth,
@@ -1020,6 +1180,8 @@ canvas.addEventListener('pointerdown', (e) => {
         };
     } else {
         currentElement = {
+            id: newElementId(),
+            z: nextZ(),
             type: activeTool,
             color: activeColor,
             width: activeWidth,
@@ -1171,7 +1333,9 @@ function endPointer(e) {
         const dx = world.x - selectionStartWorld.x;
         const dy = world.y - selectionStartWorld.y;
         if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
-            pushHistory();
+            const before = Array.from(selectionSnapshots.values());
+            const after = Array.from(selectionSnapshots.keys());
+            commit(putOp(after), putOp(before));
         }
         isDraggingSelection = false;
         selectionSnapshots.clear();
@@ -1188,10 +1352,9 @@ function endPointer(e) {
     }
 
     if (currentElement) {
-        pushHistory();
-        elements.push(currentElement);
+        const el = currentElement;
         currentElement = null;
-        render();
+        commit(putOp([el]), deleteOp([el.id]));
     }
 }
 
@@ -1229,10 +1392,9 @@ window.addEventListener('keydown', (e) => {
     if (e.key === 'Backspace' || e.key === 'Delete') {
         if (selectedElements.size > 0) {
             e.preventDefault();
-            pushHistory();
-            elements = elements.filter(el => !selectedElements.has(el));
+            const removed = Array.from(selectedElements);
             selectedElements.clear();
-            render();
+            commit(deleteOp(removed.map(el => el.id)), putOp(removed));
             return;
         }
     }
@@ -1429,3 +1591,5 @@ setActiveTool('pen');
 setActiveColor('#cdd6f4');
 setActiveWidth(4);
 resizeCanvas();
+updateSyncIndicator();
+connect();

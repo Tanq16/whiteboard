@@ -8,10 +8,11 @@
 
 ---
 
-whiteboard is a minimalist, local-first infinite canvas whiteboard served by a single Go binary. It provides a clean, distraction-free space for sketching, diagramming, and handwritten notes with pressure-sensitive stylus strokes. It is not an online multi-user suite or a heavy vector illustration editor.
+whiteboard is a minimalist, self-hosted infinite canvas whiteboard served by a single Go binary. It holds one board that every device pointed at the server draws on, for sketching, diagramming, and handwritten notes with pressure-sensitive stylus strokes. It is not a hosted suite with accounts and separate rooms, or a heavy vector illustration editor.
 
 ## Features
 
+- One board shared across every connected device, kept in step over server-sent events.
 - Infinite pan and zoom canvas with multi-touch gestures and mouse wheel navigation.
 - Smooth pressure-sensitive pen drawing backed by Catmull-Rom spline interpolation.
 - Palm rejection ignoring touch drawing inputs while pen mode is active.
@@ -62,7 +63,7 @@ Start the whiteboard server:
 | Flag | Default | Description |
 |---|---|---|
 | `--port` | `8080` | Port for the local web server |
-| `--host` | `127.0.0.1` | Bind address for the server |
+| `--host` | `0.0.0.0` | Bind address for the server |
 | `--debug` | `false` | Enable debug logging output |
 
 ### Keyboard Shortcuts
@@ -88,5 +89,8 @@ Start the whiteboard server:
 
 ## Notes
 
-- **Local-first execution**: All canvas operations and drawings stay strictly on your local machine with zero external network requests.
-- **Self-contained binary**: All web assets, styles, and fonts are vendored into the compiled binary via Go embed.
+- **Server-held state**: The board lives in the serving process, so it is gone when that process restarts and nothing is written to disk.
+- **Whole-action sync**: A stroke reaches other devices when it is finished rather than while it is being drawn, and the same goes for a move, a restyle, and a delete.
+- **Per-device undo**: Undo and redo walk the actions taken in that browser, so undoing never rolls back what another device drew. The result broadcasts like any other edit.
+- **Offline edits**: Drawing continues while the server is unreachable, the toolbar dot turns red, and the queued actions are sent once it returns.
+- **No external requests**: Nothing beyond your own server is contacted, and all web assets, styles, and fonts are vendored into the compiled binary via Go embed.
