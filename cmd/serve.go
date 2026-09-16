@@ -1,9 +1,9 @@
 package cmd
 
 import (
+	"github.com/Tanq16/whiteboard/internal/server"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
-	"github.com/Tanq16/whiteboard/internal/server"
 )
 
 var serveFlags struct {
