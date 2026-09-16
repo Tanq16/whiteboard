@@ -19,6 +19,7 @@ whiteboard is a minimalist, self-hosted infinite canvas whiteboard served by a s
 - Canvas element selection with drag box marquee selection, Command-click multi-selection, and group translation.
 - Single-point dot selection and manipulation for quick taps and pen points.
 - Clean vector primitives for lines, arrows, rectangles, and circles.
+- Object eraser that removes every whole element a drag passes over in one undoable action.
 - Handwritten text tool with embedded Virgil font and variable font sizing.
 - Pure bar stroke width and text size picker spanning 0.5px to 24px.
 - Ephemeral laser pointer trail with smooth tapering and glow for live presentations.
@@ -73,6 +74,7 @@ Start the whiteboard server:
 | `V` or `1` | Select tool |
 | `H` | Hand / Pan tool |
 | `P` | Pen tool |
+| `E` | Eraser |
 | `K` | Laser pointer |
 | `R` | Rectangle tool |
 | `C` | Circle tool |

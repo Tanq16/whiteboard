@@ -61,6 +61,10 @@ let activePointers = new Map();
 let prevTouchCenter = null;
 let prevTouchDist = null;
 
+let isErasing = false;
+let eraseLastWorld = null;
+const erasingElements = new Set();
+
 let laserTrails = [];
 let currentLaserTrail = null;
 let isDrawingLaser = false;
@@ -179,6 +183,8 @@ function setActiveTool(tool) {
         commitText();
     }
     activeTool = tool;
+    isErasing = false;
+    erasingElements.clear();
     if (tool !== 'select') {
         selectedElements.clear();
         isBoxSelecting = false;
@@ -789,6 +795,35 @@ function boundsOverlap(b1, b2) {
     return !(b1.maxX < b2.minX || b1.minX > b2.maxX || b1.maxY < b2.minY || b1.minY > b2.maxY);
 }
 
+function eraseAlong(from, to) {
+    const segment = {
+        minX: Math.min(from.x, to.x),
+        maxX: Math.max(from.x, to.x),
+        minY: Math.min(from.y, to.y),
+        maxY: Math.max(from.y, to.y)
+    };
+    const candidates = elements.filter(el =>
+        !erasingElements.has(el) && boundsOverlap(segment, getElementBounds(el))
+    );
+    if (candidates.length === 0) return false;
+
+    const dist = Math.hypot(to.x - from.x, to.y - from.y);
+    const steps = Math.max(1, Math.ceil(dist * zoom / 4));
+    let hit = false;
+    for (let s = 0; s <= steps; s++) {
+        const t = s / steps;
+        const wx = from.x + (to.x - from.x) * t;
+        const wy = from.y + (to.y - from.y) * t;
+        for (const el of candidates) {
+            if (!erasingElements.has(el) && hitTestElement(el, wx, wy)) {
+                erasingElements.add(el);
+                hit = true;
+            }
+        }
+    }
+    return hit;
+}
+
 function renderSelectionOutline(targetCtx, el) {
     const b = getElementBounds(el);
     targetCtx.save();
@@ -927,7 +962,10 @@ function render() {
     ctx.setTransform(dpr * zoom, 0, 0, dpr * zoom, dpr * pan.x, dpr * pan.y);
 
     for (const el of elements) {
+        const fading = erasingElements.has(el);
+        if (fading) ctx.globalAlpha = 0.2;
         renderElement(ctx, el);
+        if (fading) ctx.globalAlpha = 1;
     }
 
     if (currentElement) {
@@ -1071,6 +1109,11 @@ canvas.addEventListener('pointerdown', (e) => {
             currentElement = null;
             render();
         }
+        if (isErasing) {
+            isErasing = false;
+            erasingElements.clear();
+            render();
+        }
         isDraggingSelection = false;
         const pts = Array.from(activePointers.values());
         prevTouchCenter = {
@@ -1146,6 +1189,15 @@ canvas.addEventListener('pointerdown', (e) => {
 
     if (activeTool === 'text') {
         openTextInput(e.clientX, e.clientY, world.x, world.y);
+        return;
+    }
+
+    if (activeTool === 'eraser') {
+        isErasing = true;
+        eraseLastWorld = world;
+        canvas.setPointerCapture(e.pointerId);
+        eraseAlong(world, world);
+        render();
         return;
     }
 
@@ -1291,6 +1343,17 @@ canvas.addEventListener('pointermove', (e) => {
         return;
     }
 
+    if (isErasing) {
+        let changed = false;
+        for (const ev of extractPointerEvents(e)) {
+            const world = screenToWorld(ev.clientX, ev.clientY);
+            if (eraseAlong(eraseLastWorld, world)) changed = true;
+            eraseLastWorld = world;
+        }
+        if (changed) render();
+        return;
+    }
+
     if (isDrawingLaser && currentLaserTrail) {
         const events = extractPointerEvents(e);
         for (const ev of events) {
@@ -1349,6 +1412,18 @@ function endPointer(e) {
     if (isDrawingLaser) {
         isDrawingLaser = false;
         currentLaserTrail = null;
+    }
+
+    if (isErasing) {
+        isErasing = false;
+        eraseLastWorld = null;
+        const removed = Array.from(erasingElements).filter(el => elementsById.has(el.id));
+        erasingElements.clear();
+        if (removed.length > 0) {
+            commit(deleteOp(removed.map(el => el.id)), putOp(removed));
+        } else {
+            render();
+        }
     }
 
     if (currentElement) {
@@ -1438,6 +1513,7 @@ window.addEventListener('keydown', (e) => {
         'r': 'rect',
         'c': 'circle',
         't': 'text',
+        'e': 'eraser',
         'k': 'laser'
     };
     if (toolMap[key]) {
