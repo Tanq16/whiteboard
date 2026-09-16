@@ -47,6 +47,7 @@ let queueStalled = false;
 let selectedElements = new Set();
 let isDraggingSelection = false;
 let selectionStartWorld = { x: 0, y: 0 };
+let dragOffset = { x: 0, y: 0 };
 let selectionSnapshots = new Map();
 let isBoxSelecting = false;
 let boxSelectStartWorld = { x: 0, y: 0 };
@@ -71,6 +72,7 @@ let isDrawingLaser = false;
 let laserAnimFrame = null;
 
 let pendingTextPos = null;
+let renderHandle = null;
 
 function screenToWorld(sx, sy) {
     return {
@@ -293,6 +295,7 @@ function setActiveWidth(width) {
             if (el.type === 'text') {
                 el.fontSize = getFontSizeForWidth(activeWidth);
             }
+            invalidateElement(el);
         }
         commit(putOp(Array.from(selectedElements)), putOp(before));
     }
@@ -372,6 +375,7 @@ function applyOp(op) {
             const existing = elementsById.get(incoming.id);
             if (existing) {
                 Object.assign(existing, incoming);
+                invalidateElement(existing);
             } else {
                 const el = clone(incoming);
                 elementsById.set(el.id, el);
@@ -569,17 +573,22 @@ function computeStrokePoints(rawPoints, width) {
     );
 }
 
-function drawStrokeToCanvas(targetCtx, strokePoints) {
-    if (strokePoints.length === 0) return;
-    targetCtx.beginPath();
-    targetCtx.moveTo(strokePoints[0][0], strokePoints[0][1]);
+function strokePointsToPath(strokePoints) {
+    const path = new Path2D();
+    if (strokePoints.length === 0) return path;
+    path.moveTo(strokePoints[0][0], strokePoints[0][1]);
     for (let i = 0; i < strokePoints.length; i++) {
         const [x0, y0] = strokePoints[i];
         const [x1, y1] = strokePoints[(i + 1) % strokePoints.length];
-        targetCtx.quadraticCurveTo(x0, y0, (x0 + x1) / 2, (y0 + y1) / 2);
+        path.quadraticCurveTo(x0, y0, (x0 + x1) / 2, (y0 + y1) / 2);
     }
-    targetCtx.closePath();
-    targetCtx.fill();
+    path.closePath();
+    return path;
+}
+
+function drawStrokeToCanvas(targetCtx, strokePoints) {
+    if (strokePoints.length === 0) return;
+    targetCtx.fill(strokePointsToPath(strokePoints));
 }
 
 function getSvgPathFromStroke(strokePoints) {
@@ -596,11 +605,9 @@ function getSvgPathFromStroke(strokePoints) {
     return d.join(' ');
 }
 
-function renderPenStroke(targetCtx, points, color, width) {
-    const strokePoints = computeStrokePoints(points, width);
-    if (strokePoints.length === 0) return;
-    targetCtx.fillStyle = color;
-    drawStrokeToCanvas(targetCtx, strokePoints);
+function renderPenStroke(targetCtx, el) {
+    targetCtx.fillStyle = el.color;
+    targetCtx.fill(strokePath(el));
 }
 
 function renderArrow(targetCtx, el) {
@@ -643,7 +650,7 @@ function renderArrow(targetCtx, el) {
 
 function renderElement(targetCtx, el) {
     if (el.type === 'pen') {
-        renderPenStroke(targetCtx, el.points, el.color, el.width);
+        renderPenStroke(targetCtx, el);
     } else if (el.type === 'line') {
         targetCtx.strokeStyle = el.color;
         targetCtx.lineWidth = el.width;
@@ -687,6 +694,24 @@ function renderElement(targetCtx, el) {
         lines.forEach((line, idx) => {
             targetCtx.fillText(line, el.x, el.y + idx * lineHeight);
         });
+    }
+}
+
+function translateElement(el, snap, dx, dy) {
+    if (el.type === 'pen') {
+        el.points = snap.points.map(p => ({
+            x: p.x + dx,
+            y: p.y + dy,
+            pressure: p.pressure
+        }));
+    } else if (el.type === 'text') {
+        el.x = snap.x + dx;
+        el.y = snap.y + dy;
+    } else {
+        el.startX = snap.startX + dx;
+        el.startY = snap.startY + dy;
+        el.endX = snap.endX + dx;
+        el.endY = snap.endY + dy;
     }
 }
 
@@ -748,8 +773,45 @@ function getElementBounds(el) {
     return { minX: 0, minY: 0, maxX: 0, maxY: 0 };
 }
 
+const elementCache = new WeakMap();
+
+function cacheFor(el) {
+    let entry = elementCache.get(el);
+    if (!entry) {
+        entry = {};
+        elementCache.set(el, entry);
+    }
+    return entry;
+}
+
+function invalidateElement(el) {
+    elementCache.delete(el);
+}
+
+function elementBounds(el) {
+    const entry = cacheFor(el);
+    if (!entry.bounds) {
+        entry.bounds = getElementBounds(el);
+    }
+    return entry.bounds;
+}
+
+function strokePath(el) {
+    const entry = cacheFor(el);
+    if (!entry.path) {
+        entry.path = strokePointsToPath(computeStrokePoints(el.points, el.width));
+    }
+    return entry.path;
+}
+
+function viewportBounds() {
+    const tl = screenToWorld(0, 0);
+    const br = screenToWorld(window.innerWidth, window.innerHeight);
+    return { minX: tl.x, minY: tl.y, maxX: br.x, maxY: br.y };
+}
+
 function hitTestElement(el, wx, wy) {
-    const b = getElementBounds(el);
+    const b = elementBounds(el);
     if (wx < b.minX || wx > b.maxX || wy < b.minY || wy > b.maxY) {
         return false;
     }
@@ -803,7 +865,7 @@ function eraseAlong(from, to) {
         maxY: Math.max(from.y, to.y)
     };
     const candidates = elements.filter(el =>
-        !erasingElements.has(el) && boundsOverlap(segment, getElementBounds(el))
+        !erasingElements.has(el) && boundsOverlap(segment, elementBounds(el))
     );
     if (candidates.length === 0) return false;
 
@@ -825,7 +887,7 @@ function eraseAlong(from, to) {
 }
 
 function renderSelectionOutline(targetCtx, el) {
-    const b = getElementBounds(el);
+    const b = elementBounds(el);
     targetCtx.save();
     targetCtx.strokeStyle = '#cba6f7';
     targetCtx.lineWidth = 1.5;
@@ -953,6 +1015,14 @@ function renderLaserTrail(targetCtx) {
 }
 
 function render() {
+    if (renderHandle !== null) return;
+    renderHandle = requestAnimationFrame(() => {
+        renderHandle = null;
+        draw();
+    });
+}
+
+function draw() {
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -961,10 +1031,20 @@ function render() {
     ctx.save();
     ctx.setTransform(dpr * zoom, 0, 0, dpr * zoom, dpr * pan.x, dpr * pan.y);
 
+    const view = viewportBounds();
+    const dragging = isDraggingSelection && selectionSnapshots.size > 0;
+
     for (const el of elements) {
+        const moving = dragging && selectionSnapshots.has(el);
+        if (!moving && !boundsOverlap(view, elementBounds(el))) continue;
         const fading = erasingElements.has(el);
         if (fading) ctx.globalAlpha = 0.2;
+        if (moving) {
+            ctx.save();
+            ctx.translate(dragOffset.x, dragOffset.y);
+        }
         renderElement(ctx, el);
+        if (moving) ctx.restore();
         if (fading) ctx.globalAlpha = 1;
     }
 
@@ -973,7 +1053,13 @@ function render() {
     }
 
     for (const selEl of selectedElements) {
+        const moving = dragging && selectionSnapshots.has(selEl);
+        if (moving) {
+            ctx.save();
+            ctx.translate(dragOffset.x, dragOffset.y);
+        }
         renderSelectionOutline(ctx, selEl);
+        if (moving) ctx.restore();
     }
 
     if (isBoxSelecting) {
@@ -1010,7 +1096,7 @@ function tickLaser() {
         }
     }
 
-    render();
+    draw();
 
     if (laserTrails.length > 0 || isDrawingLaser) {
         laserAnimFrame = requestAnimationFrame(tickLaser);
@@ -1168,6 +1254,7 @@ canvas.addEventListener('pointerdown', (e) => {
             if (selectedElements.has(hit)) {
                 isDraggingSelection = true;
                 selectionStartWorld = { x: world.x, y: world.y };
+                dragOffset = { x: 0, y: 0 };
                 selectionSnapshots.clear();
                 for (const selEl of selectedElements) {
                     selectionSnapshots.set(selEl, JSON.parse(JSON.stringify(selEl)));
@@ -1285,26 +1372,10 @@ canvas.addEventListener('pointermove', (e) => {
 
     if (isDraggingSelection && selectionSnapshots.size > 0) {
         const world = screenToWorld(e.clientX, e.clientY);
-        const dx = world.x - selectionStartWorld.x;
-        const dy = world.y - selectionStartWorld.y;
-
-        for (const [selEl, snap] of selectionSnapshots.entries()) {
-            if (selEl.type === 'pen') {
-                selEl.points = snap.points.map(p => ({
-                    x: p.x + dx,
-                    y: p.y + dy,
-                    pressure: p.pressure
-                }));
-            } else if (selEl.type === 'text') {
-                selEl.x = snap.x + dx;
-                selEl.y = snap.y + dy;
-            } else {
-                selEl.startX = snap.startX + dx;
-                selEl.startY = snap.startY + dy;
-                selEl.endX = snap.endX + dx;
-                selEl.endY = snap.endY + dy;
-            }
-        }
+        dragOffset = {
+            x: world.x - selectionStartWorld.x,
+            y: world.y - selectionStartWorld.y
+        };
         render();
         return;
     }
@@ -1321,7 +1392,7 @@ canvas.addEventListener('pointermove', (e) => {
             selectedElements.clear();
         }
         for (const el of elements) {
-            const eb = getElementBounds(el);
+            const eb = elementBounds(el);
             if (boundsOverlap(box, eb)) {
                 selectedElements.add(el);
             }
@@ -1377,6 +1448,7 @@ canvas.addEventListener('pointermove', (e) => {
         currentElement.endX = w.x;
         currentElement.endY = w.y;
     }
+    invalidateElement(currentElement);
     render();
 });
 
@@ -1395,13 +1467,20 @@ function endPointer(e) {
         const world = screenToWorld(e.clientX, e.clientY);
         const dx = world.x - selectionStartWorld.x;
         const dy = world.y - selectionStartWorld.y;
-        if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
+        const moved = Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5;
+        if (moved) {
+            for (const [selEl, snap] of selectionSnapshots.entries()) {
+                translateElement(selEl, snap, dx, dy);
+                invalidateElement(selEl);
+            }
             const before = Array.from(selectionSnapshots.values());
             const after = Array.from(selectionSnapshots.keys());
             commit(putOp(after), putOp(before));
         }
         isDraggingSelection = false;
+        dragOffset = { x: 0, y: 0 };
         selectionSnapshots.clear();
+        if (!moved) render();
     }
 
     if (isBoxSelecting) {
@@ -1532,7 +1611,7 @@ function calculateBounds() {
     let maxY = -Infinity;
 
     for (const el of elements) {
-        const b = getElementBounds(el);
+        const b = elementBounds(el);
         minX = Math.min(minX, b.minX);
         minY = Math.min(minY, b.minY);
         maxX = Math.max(maxX, b.maxX);
