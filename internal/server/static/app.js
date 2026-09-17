@@ -77,6 +77,8 @@ let pendingTextPos = null;
 let renderHandle = null;
 
 const minExportScale = 1 / 32;
+const minZoom = 0.1;
+const maxZoom = 10.0;
 
 function screenToWorld(sx, sy) {
     return {
@@ -316,13 +318,35 @@ function updateZoomIndicator() {
     zoomIndicator.textContent = `${Math.round(zoom * 100)}%`;
 }
 
+function clampZoom(value) {
+    return Math.min(maxZoom, Math.max(minZoom, value));
+}
+
 function applyZoom(newZoom, centerX, centerY) {
-    const clamped = Math.min(10.0, Math.max(0.1, newZoom));
+    const clamped = clampZoom(newZoom);
     const wx = (centerX - pan.x) / zoom;
     const wy = (centerY - pan.y) / zoom;
     zoom = clamped;
     pan.x = centerX - wx * zoom;
     pan.y = centerY - wy * zoom;
+    updateZoomIndicator();
+    render();
+}
+
+function fitToContent() {
+    if (elements.length === 0) {
+        zoom = 1.0;
+        pan = { x: 0, y: 0 };
+    } else {
+        const bounds = calculateBounds();
+        const top = toolbar.getBoundingClientRect().bottom;
+        const viewWidth = window.innerWidth;
+        const viewHeight = window.innerHeight - top;
+        const fit = Math.min(viewWidth / bounds.width, viewHeight / bounds.height);
+        zoom = clampZoom(Math.min(1.0, fit));
+        pan.x = viewWidth / 2 - ((bounds.minX + bounds.maxX) / 2) * zoom;
+        pan.y = top + viewHeight / 2 - ((bounds.minY + bounds.maxY) / 2) * zoom;
+    }
     updateZoomIndicator();
     render();
 }
@@ -335,12 +359,7 @@ document.getElementById('btn-zoom-out').addEventListener('click', () => {
     applyZoom(zoom * 0.8, window.innerWidth / 2, window.innerHeight / 2);
 });
 
-document.getElementById('btn-zoom-reset').addEventListener('click', () => {
-    zoom = 1.0;
-    pan = { x: 0, y: 0 };
-    updateZoomIndicator();
-    render();
-});
+document.getElementById('btn-zoom-reset').addEventListener('click', fitToContent);
 
 function newElementId() {
     return crypto.randomUUID();
@@ -1589,10 +1608,7 @@ window.addEventListener('keydown', (e) => {
     }
     if (e.key === '0') {
         e.preventDefault();
-        zoom = 1.0;
-        pan = { x: 0, y: 0 };
-        updateZoomIndicator();
-        render();
+        fitToContent();
         return;
     }
 
