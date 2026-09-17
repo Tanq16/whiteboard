@@ -25,6 +25,7 @@ whiteboard is a minimalist, self-hosted infinite canvas whiteboard served by a s
 - Ephemeral laser pointer trail with smooth tapering and glow for live presentations.
 - Popover modals for color swatches, size bars, and shape selection.
 - High-resolution PNG and SVG export directly from canvas drawings.
+- JSON export of the whole board, and a JSON import that replaces the canvas with the file's contents in one undoable action.
 - PWA installable with standalone display and Catppuccin Mocha palette.
 
 ## Install
@@ -95,4 +96,5 @@ Start the whiteboard server:
 - **Whole-action sync**: A stroke reaches other devices when it is finished rather than while it is being drawn, and the same goes for a move, a restyle, and a delete.
 - **Per-device undo**: Undo and redo walk the actions taken in that browser, so undoing never rolls back what another device drew. The result broadcasts like any other edit.
 - **Offline edits**: Drawing continues while the server is unreachable, the toolbar dot turns red, and the queued actions are sent once it returns.
+- **Import replaces the board**: Importing a JSON file discards whatever is on the canvas across every connected device, and one undo puts it back on the device that imported.
 - **No external requests**: Nothing beyond your own server is contacted, and all web assets, styles, and fonts are vendored into the compiled binary via Go embed.

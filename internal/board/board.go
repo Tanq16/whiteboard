@@ -10,9 +10,10 @@ import (
 )
 
 const (
-	KindPut    = "put"
-	KindDelete = "delete"
-	KindClear  = "clear"
+	KindPut     = "put"
+	KindDelete  = "delete"
+	KindClear   = "clear"
+	KindReplace = "replace"
 )
 
 const (
@@ -85,6 +86,9 @@ func (b *Board) Apply(op Op) (Op, error) {
 		})
 	case KindClear:
 		b.elements = nil
+	case KindReplace:
+		b.elements = slices.Clone(op.Elements)
+		slices.SortFunc(b.elements, compareElements)
 	}
 
 	b.history = append(b.history, op)
@@ -169,9 +173,11 @@ func validate(op Op) error {
 		if len(op.Elements) == 0 {
 			return fmt.Errorf("put op carries no elements")
 		}
+		fallthrough
+	case KindReplace:
 		for _, el := range op.Elements {
 			if el.ID() == "" {
-				return fmt.Errorf("put op carries an element with no id")
+				return fmt.Errorf("%s op carries an element with no id", op.Kind)
 			}
 		}
 	case KindDelete:
