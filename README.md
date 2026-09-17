@@ -87,7 +87,7 @@ Start the whiteboard server:
 | `Cmd` / `Ctrl` + `Z` | Undo action |
 | `Cmd` / `Ctrl` + `Y` | Redo action |
 | `+` / `-` | Zoom in / Zoom out |
-| `0` | Reset zoom to 100% |
+| `0` | Fit the drawing to the screen and center it |
 | `Escape` | Deselect elements or close menus |
 
 ## Notes
