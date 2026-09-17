@@ -74,6 +74,8 @@ let laserAnimFrame = null;
 let pendingTextPos = null;
 let renderHandle = null;
 
+const minExportScale = 1 / 32;
+
 function screenToWorld(sx, sy) {
     return {
         x: (sx - pan.x) / zoom,
@@ -1634,15 +1636,23 @@ function calculateBounds() {
     };
 }
 
-document.getElementById('btn-export-png').addEventListener('click', () => {
-    closeAllDropdowns();
-    const bounds = calculateBounds();
-    const offCanvas = document.createElement('canvas');
-    offCanvas.width = bounds.width * dpr;
-    offCanvas.height = bounds.height * dpr;
-    const offCtx = offCanvas.getContext('2d');
+function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+}
 
-    offCtx.scale(dpr, dpr);
+function renderBoardToBlob(bounds, scale) {
+    const offCanvas = document.createElement('canvas');
+    offCanvas.width = Math.round(bounds.width * scale);
+    offCanvas.height = Math.round(bounds.height * scale);
+    const offCtx = offCanvas.getContext('2d');
+    if (!offCtx) return Promise.resolve(null);
+
+    offCtx.scale(scale, scale);
     offCtx.fillStyle = '#11111b';
     offCtx.fillRect(0, 0, bounds.width, bounds.height);
 
@@ -1653,11 +1663,21 @@ document.getElementById('btn-export-png').addEventListener('click', () => {
     }
     offCtx.restore();
 
-    const dataUrl = offCanvas.toDataURL('image/png');
-    const a = document.createElement('a');
-    a.href = dataUrl;
-    a.download = 'whiteboard.png';
-    a.click();
+    return new Promise(resolve => offCanvas.toBlob(resolve, 'image/png'));
+}
+
+document.getElementById('btn-export-png').addEventListener('click', async () => {
+    closeAllDropdowns();
+    const bounds = calculateBounds();
+    // Browsers cap canvas size at values they never report, so a returned blob is the only reliable test.
+    for (let scale = dpr; scale >= minExportScale; scale /= 2) {
+        const blob = await renderBoardToBlob(bounds, scale);
+        if (blob) {
+            downloadBlob(blob, 'whiteboard.png');
+            return;
+        }
+    }
+    console.error('whiteboard: the board is too large to export as a PNG, export it as SVG instead');
 });
 
 function escapeXml(unsafe) {
@@ -1733,13 +1753,7 @@ document.getElementById('btn-export-svg').addEventListener('click', () => {
 
     svg += `</g>\n</svg>`;
 
-    const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'whiteboard.svg';
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadBlob(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }), 'whiteboard.svg');
 });
 
 setActiveTool('pen');
