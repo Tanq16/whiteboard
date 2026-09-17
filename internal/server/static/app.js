@@ -19,6 +19,7 @@ const activeWidthBar = document.getElementById('active-width-bar');
 const widthMenu = document.getElementById('width-menu');
 const exportMenuBtn = document.getElementById('btn-export-menu');
 const exportMenu = document.getElementById('export-menu');
+const importInput = document.getElementById('import-file');
 const syncIndicator = document.getElementById('sync-indicator');
 const syncDot = document.getElementById('sync-dot');
 
@@ -31,6 +32,7 @@ let penMode = false;
 let activeColor = '#cdd6f4';
 let activeWidth = 4;
 
+const boardFileVersion = 1;
 const elements = [];
 const elementsById = new Map();
 let undoStack = [];
@@ -370,6 +372,22 @@ function clearOp() {
     return { origin: clientId, kind: 'clear' };
 }
 
+function replaceOp(els) {
+    return { origin: clientId, kind: 'replace', elements: els };
+}
+
+function loadElements(incoming) {
+    const next = incoming.map(clone);
+    elements.length = 0;
+    elementsById.clear();
+    selectedElements.clear();
+    for (const el of next) {
+        elementsById.set(el.id, el);
+        elements.push(el);
+    }
+    elements.sort(compareElements);
+}
+
 function applyOp(op) {
     if (op.kind === 'put') {
         let added = false;
@@ -398,6 +416,8 @@ function applyOp(op) {
         elements.length = 0;
         elementsById.clear();
         selectedElements.clear();
+    } else if (op.kind === 'replace') {
+        loadElements(op.elements || []);
     }
 }
 
@@ -486,14 +506,7 @@ function connect() {
     stream.addEventListener('sync', (e) => {
         const snapshot = JSON.parse(e.data);
         lastSeq = snapshot.seq;
-        elements.length = 0;
-        elementsById.clear();
-        selectedElements.clear();
-        for (const el of snapshot.elements) {
-            elementsById.set(el.id, el);
-            elements.push(el);
-        }
-        elements.sort(compareElements);
+        loadElements(snapshot.elements);
         for (const body of pendingOps) {
             applyOp(JSON.parse(body));
         }
@@ -1754,6 +1767,52 @@ document.getElementById('btn-export-svg').addEventListener('click', () => {
     svg += `</g>\n</svg>`;
 
     downloadBlob(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }), 'whiteboard.svg');
+});
+
+document.getElementById('btn-export-json').addEventListener('click', () => {
+    closeAllDropdowns();
+    const payload = JSON.stringify({ version: boardFileVersion, elements }, null, 2);
+    downloadBlob(new Blob([payload], { type: 'application/json' }), 'whiteboard.json');
+});
+
+function parseBoardFile(text) {
+    const parsed = JSON.parse(text);
+    if (!parsed || !Array.isArray(parsed.elements)) {
+        throw new Error('the file carries no elements array');
+    }
+    if (parsed.version !== boardFileVersion) {
+        throw new Error(`unsupported board version ${parsed.version}`);
+    }
+    return parsed.elements.map(el => {
+        if (!el || typeof el !== 'object' || typeof el.type !== 'string') {
+            throw new Error('the file carries an entry that is not a board element');
+        }
+        const id = typeof el.id === 'string' && el.id ? el.id : newElementId();
+        const z = Number.isFinite(el.z) ? el.z : nextZ();
+        return { ...el, id, z };
+    });
+}
+
+document.getElementById('btn-import-json').addEventListener('click', () => {
+    closeAllDropdowns();
+    importInput.click();
+});
+
+importInput.addEventListener('change', async () => {
+    const file = importInput.files[0];
+    importInput.value = '';
+    if (!file) return;
+    let imported;
+    try {
+        imported = parseBoardFile(await file.text());
+    } catch (err) {
+        console.error('whiteboard: could not import that file,', err.message);
+        return;
+    }
+    for (const el of imported) {
+        zCounter = Math.max(zCounter, el.z);
+    }
+    commit(replaceOp(imported), replaceOp(elements.slice()));
 });
 
 setActiveTool('pen');

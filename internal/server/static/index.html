@@ -139,7 +139,7 @@
                 <button id="btn-clear" class="p-1.5 rounded-lg text-subtext0 hover:text-red hover:bg-surface0 transition" title="Clear Canvas">
                     <i data-lucide="trash-2" class="w-4 h-4"></i>
                 </button>
-                <button id="btn-export-menu" class="p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition flex items-center gap-0.5" title="Export">
+                <button id="btn-export-menu" class="p-1.5 rounded-lg text-subtext0 hover:text-text hover:bg-surface0 transition flex items-center gap-0.5" title="Export and import">
                     <i data-lucide="download" class="w-4 h-4"></i>
                     <i data-lucide="chevron-down" class="w-2.5 h-2.5 opacity-60"></i>
                 </button>
@@ -224,7 +224,18 @@
             <i data-lucide="file-code" class="w-4 h-4"></i>
             <span>Export as SVG</span>
         </button>
+        <button id="btn-export-json" class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs text-subtext0 hover:text-text hover:bg-surface0 transition text-left">
+            <i data-lucide="file-json" class="w-4 h-4"></i>
+            <span>Export as JSON</span>
+        </button>
+        <div class="border-t border-surface0 my-0.5"></div>
+        <button id="btn-import-json" class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs text-subtext0 hover:text-text hover:bg-surface0 transition text-left">
+            <i data-lucide="upload" class="w-4 h-4"></i>
+            <span>Import JSON</span>
+        </button>
     </div>
+
+    <input type="file" id="import-file" accept="application/json,.json" class="hidden">
 
     <canvas id="whiteboard-canvas" class="absolute inset-0 w-full h-full touch-none block"></canvas>
 
